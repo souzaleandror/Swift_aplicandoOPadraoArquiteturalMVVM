@@ -437,3 +437,366 @@ A identificar os potenciais problemas de escalabilidade e testabilidade quando c
 Entender sobre a importância dos padrões arquiteturais, como MVVM, MVP, Viper e Clean, no desenvolvimento iOS.
 Entender o que é o MVVM, sendo ele um padrão arquitetural comum no desenvolvimento iOS, e como este pode ser aplicado para melhorar a organização e a divisão de responsabilidades em nosso projeto.
 Analisar sobre a organização das chamadas de APIs e como isso pode afetar a escalabilidade à medida que a aplicação cresce, em especial com o arquivo webservice que centraliza todas as chamadas para APIs.
+
+
+#### 20/04/2024
+
+@02-Separação de responsabilidade
+
+@@01
+Projeto da aula anterior
+
+Você pode revisar o seu código e acompanhar o passo a passo do desenvolvimento do nosso projeto e, se preferir, pode baixar o projeto da aula anterior.
+Bons estudos!
+
+@@02
+Separando responsabilidades com MVVM
+
+De volta com o nosso projeto, já temos o primeiro caso de uso, onde começamos a aplicar o MVVM. Criamos o arquivo HomeViewModel, onde temos o método getSpecialists(). Tiramos da View essa responsabilidade e colocamos no ViewModel.
+Vamos abrir a pasta Views no explorador à esquerda e vamos abrir o arquivo HomeView novamente, porque ainda temos mais um caso de uso que precisamos refatorar.
+
+Refatorando Outro Caso de Uso
+Em seu interior, na linha let response = try await viewModel.getSpecialists(), temos a chamada para o nosso ViewModel, onde buscamos os especialistas. Um pouco mais abaixo, entre as chaves do bloco Task, temos a linha await logout() com outra chamada para a API que está dentro do arquivo HomeView.
+
+Isso fere os princípios de responsabilidade que começamos a estudar aqui no curso. A ideia é deixar tudo que for de API dentro do ViewModel. E não só isso, o ViewModel pode ser utilizado para fazer verificações ou validação de regras de negócio. No nosso caso de uso atual, estamos tratando apenas as chamadas de API.
+
+Na linha await logout(), se pressionarmos a tecla "Command" e clicar no método logout(), ele nos levará ao bloco func logout() async, no qual a lógica para fazer o logout está implementada. A ideia é apagar todo esse bloco depois que o colocarmos no ViewModel.
+
+Vamos abrir novamente o arquivo HomeViewModel. Após a chave que encerra a implementação do método getSpecialists(), vamos pressionar "Enter" duas vezes. Nessa nova linha, vamos começar a refatoração adicionando o método de logout. Vamos criar uma nova função chamada logout(). Ela será uma função onde utilizaremos o Async/Await, então temos que adicionar a anotação async.
+
+Quando chamamos os métodos, todos eles têm a anotação throws, então vamos ter que utilizar o método do-catch para verificar se a requisição contém erro ou não. E importante entender a assinatura do método para chamá-lo corretamente.
+
+Entre as chaves do método novo, precisaremos da anotação do-catch. Entre as chaves do catch, vamos continuar apenas imprimindo o erro com um print(). Vamos colocar entre parênteses, por exemplo: "Ocorreu um erro no logout". Podemos concatenar o erro para ficar mais fácil de entender o que aconteceu. Para isso, vamos passar dois pontos e um \(error).
+
+Entre as chaves do do, vamos começar criando uma constante, chamada response. Ela será igual à tentativa de solicitação que faremos, que está na classe Service. Então, adicionaremos try await service.logoutPatient().
+
+func logout() async {
+    do {
+        let response = try await service.logoutPatient()
+    } catch {
+        print("ocorreu um erro no logout: \(error)")
+    }
+}
+COPIAR CÓDIGO
+Temos com isso uma chamada para uma API que faz o logout da pessoa usuária.
+
+Abaixo da variável response, vamos usar a mesma lógica que temos na HomeView, por isso, vamos voltar a esse arquivo para verificá-la de novo.
+
+Na HomeView, temos um if. Em seu interior, se o logout funcionar, vamos primeiro remover o token da pessoa usuária e, depois, remover esse PatientID.
+
+func logout() async {
+    do {
+        let logoutSuccessful = try await service.logoutPatient()
+        if logoutSuccessful {
+            authManager.removeToken()
+            authManager.removePatientID()
+        }
+    } catch {
+        print("Ocorreu um erro no logout: \(error)")
+    }
+}
+COPIAR CÓDIGO
+Então vamos copiar as linhas authManager.removeToken() e authManager.removePatientID(), voltar ao nosso ViewModel e colá-las entre as chaves de um if response, abaixo da variável response.
+
+func logout() async {
+    do {
+        let response = try await service.logoutPatient()
+        if response {
+            authManager.removeToken()
+            authManager.removePatientID()
+        }
+    } catch {
+        print("ocorreu um erro no logout: \(error)")
+    }
+}
+COPIAR CÓDIGO
+Temos então a implementação do método de logout. Ele não está encontrando esse authManager colado, do qual temos referência na View. Vamos voltar ao arquivo HomeView e procurar pela variável authManager que está abaixo da variável service, no topo do arquivo.
+
+struct HomeView: View {
+
+    let service = WebService()
+    var authManager = AuthenticationManager.shared
+    
+// Código omitido
+}
+COPIAR CÓDIGO
+Vamos recortar a linha var authManager = AuthenticationManager.shared com "Command+X", voltar ao HomeViewModel e colar essa referência abaixo da linha do Service ( let service = WebService().
+
+struct HomeViewModel {
+
+    // MARK: - Attributes
+
+    let service = WebService()
+    var authManager = AuthenticationManager.shared
+    
+// Código omitido
+}
+COPIAR CÓDIGO
+Vamos descer até o final do arquivo para verificar que o erro parou. Agora está tudo certo.
+
+O problema agora é no arquivo HomeView, no qual precisamos apagar todo o método de logout. Faz parte deste caso de uso apagar o método de logout, ou seja, estamos tirando da View a responsabilidade do logout.
+
+Com isso, também não precisamos mais do authManager na HomeView, por isso o recortamos. Lembrando que a HomeView é uma View responsável apenas por mostrar os elementos visuais na tela.
+
+Na linha await logout() da HomeView, temos um erro porque o método logout() não é mais encontrado, pois o apagamos. Ele não está mais diretamente na View, e sim em viewModel.logout(). É isso que vamos escrever nessa linha.
+
+struct HomeView: View {
+
+// Código omitido
+
+    var body: some View {
+        // Código omitido
+        
+        .toolbar {
+            ToolbarItem(placement: .topBarTrailing) {
+                Button(action: {
+                    Task {
+                        await viewModel.logout()
+                    }
+                // Código omitido
+                })
+            }
+        }
+        
+        // Código omitido	
+    }
+
+// Código omitido
+
+}
+COPIAR CÓDIGO
+Temos o método de logout no arquivo HomeViewModel. Agora precisamos testá-lo e ver se continua funcionando, porque faz parte do processo: fazemos a refatoração e depois testamos para ver se está tudo funcionando.
+
+Vamos executar o projeto clicando no botão "Play" na barra de ferramentas superior, no canto superior direito da aba do navegador. Com isso, vamos gerar um Build e subiremos o simulador.
+
+Em seu interior, na parte superior direita, temos o botão de logout. Quando clicarmos nele, chamaremos o ViewModel e o método de logout. Então vamos fazer esse teste. Após o clique, ele voltou para a Home, ou seja, ele realmente removeu o token e apagou o PatientId.
+
+Com isso concluímos mais um caso de uso e o primeiro tópico deste curso, que é entender a separação de responsabilidade entre a View, o Model e as regras de negócio. Para isso, fizemos uso de um padrão arquitetural chamado MVVM, ou seja, começamos a utilizar o MVVM em nosso projeto.
+
+Vamos acessar o arquivo WebService pela aba do navegador. O próximo assunto que vamos tratar são as requisições que temos nesse arquivo. No início deste curso, começamos a questionar o problema de ter todas as requisições em um único arquivo.
+
+A ideia é começar a melhorar essa separação de responsabilidade dentro do nosso projeto em relação aos métodos que fazem a requisição. Nesse código, temos muitas linhas repetidas, e vamos entender como podemos otimizar isso no próximo vídeo.
+
+@@03
+Refatorando código: MVVM e chamadas API
+
+Acabamos de criar o nosso ViewModel, no qual implementamos a primeira refatoração do projeto. Vamos abrir novamente o arquivo HomeView, em cujo interior, tínhamos chamadas para APIs diretamente na View.
+Começamos a discutir a importância de utilizar um padrão de projeto no nosso aplicativo. Estamos usando o MVVM. Com isso, todas as chamadas para APIs que tínhamos na View foram deslocadas para o arquivo HomeViewModel que criamos.
+
+Vamos abrir esse ViewModel novamente. Em seu interior, estão os dois métodos que tínhamos na View. Essa é a primeira etapa da refatoração.
+
+Outro ponto que comentamos era a duplicação de código que temos na classe WebService. Vamos dar uma olhada nele.
+
+Na linha func logoutPatient(), temos o primeiro método, o método de logout. Entre suas chaves, temos um endpoint, montamos a url e verificamos se há token. Abaixo disso, criamos a requisição na linha var request = URLRequest(url: url) e a enviamos na linha let (_, response) = try await URLSession.shared.data(for: request).
+
+Abaixo desse método, há o de login, na linha func loginPatient(). Entre suas chaves, temos algo parecido: um endpoint, uma url, a criação do URLRequest, a configuração do método da requisição para POST, além do cabeçalho e do corpo da requisição, nos quais estamos enviando os dados de pessoa usuária com jsonData.
+
+Abaixo desse método, por sua vez, temos outro, chamado registerPatient() vemos novamente o endpoint, a url, o URLRequest, o método POST, o cabeçalho e o corpo da requisição. Resumindo, temos muito código duplicado em funções semelhantes. O que muda é o endpoint, entre /auth/logout,/auth/login e /paciente. A maioria das coisas estamos duplicando.
+
+A ideia desta aula é começar a pensar em como podemos melhorar esse código e planejar nosso projeto a longo prazo. Abrindo o simulador, veremos na barra inferior os ícones das duas telas principais: se clicarmos em "Home", acessaremos essa página, que mostra a listagem de médicos e especialistas, em uma lista de cartões vertical. Ao clicar em "Minhas Consultas", veremos essa página, que mostra as consultas agendadas com uma pessoa especialista.
+
+Temos duas telas e várias requisições: cancelAppointment() para cancelar consultas, rescheduleAppointment() para reagendar e getAllAppointmentsFromPatient() para buscar todos os compromissos da pessoa paciente. Podemos imaginar quantas requisições existem em aplicativos com 10, 20 ou 30 telas? Será que é interessante deixar tudo no mesmo arquivo WebService?
+
+À medida que o aplicativo cresce, fica mais difícil encontrar a requisição necessária. Não sabemos que tela utiliza qual requisição, tornando tudo confuso.
+
+Além da reutilização de código, a ideia é separar por funcionalidade (feature), facilitando a identificação de que tela faz qual requisição. Vamos começar a estudar como componentizar isso, criando uma estrutura reutilizável para evitar copiar e colar código, melhorando significativamente a solução.
+
+Componentizando as Requisições
+Para começar, vamos criar uma nova camada no nosso projeto. Acessando a aba do navegador de arquivos, na pasta do projeto, vamos criar mais uma pasta chamada "networking", onde colocaremos tudo relacionado a requisições HTTP. Para isso, clicaremos com o botão direito na pasta raiz do projeto, 'Vollmed", selecionaremos "New Group" (novo grupo) e o chamaremos de "Networking".
+
+Vamos selecionar e arrastar essa pasta para baixo das outras que temos dentro de "VollMed". Dentro dessa nova pasta, criaremos mais três pastas que são os componentes que desenvolveremos. Para isso, clicaremos nela com o botão direito e selecionaremos novamente "New Group". A primeira pasta se chamará "Base". Em seguida, criaremos a pasta "Endpoints" e a terceira se chamará "Services".
+
+Vamos reorganizar as três pastas de modo que "Base" fique no topo e "Services" no final. Abaixo temos a estrutura de pastas finalizada, com a qual vamos trabalhar para melhorar o arquivo WebServices e deixá-lo componentizado.
+
+Networking
+Base
+Endpoints
+Services
+Dessa forma, teremos uma estrutura que evitará a duplicação de código. No próximo vídeo, começaremos criando o primeiro arquivo, o Endpoint.
+
+@@04
+Primeiros passos com camadas de networking
+
+Já temos as pastas da camada de networking (rede) criadas. É hora de criar o primeiro arquivo dentro da pasta "Base".
+Criando o Primeiro Arquivo
+Clicaremos com o botão direito em cima da pasta "Base" por meio do navegador lateral, selecionando "New File" (novo arquivo). Na janela exibida, vamos escolher a opção "Swift File" (arquivo Swift) e clicar em "Next". No campo "Save as", o nome do arquivo será Endpoint. No canto inferior direito da janela, clicaremos em "Create".
+
+Com isso, veremos que ele trará um arquivo vazio.
+
+//
+// Endpoint.swift
+// Vollmed
+
+// Created by ALURA on 06/10/23.
+
+import Foundation
+COPIAR CÓDIGO
+A ideia é separar cada parte de uma requisição para deixar isso mais configurável e evitar a duplicidade de código. Para isso, abaixo do import, vamos criar um protocolo chamado Endpoint.
+
+//
+// Endpoint.swift
+// Vollmed
+
+// Created by ALURA on 06/10/23.
+
+import Foundation
+
+protocol Endpoint {
+
+}
+COPIAR CÓDIGO
+Entre suas chaves vamos criar algumas variáveis que são pedaços de uma requisição, e vamos deixar isso configurável de acordo com a necessidade. Primeiro, vamos criar uma variável que vamos chamar de scheme. Ela será do tipo String e, como precisaremos dessa variável, vamos passar um get entre chaves.
+
+Vamos copiar essa linha com "Command+C" e colaremos esse código nas cinco linhas abaixo desta, para ganhar tempo, alterando apenas o nome dessas variáveis para host, path, method, header e body.
+
+No method, temos o método da requisição, que pode ser Get, Put, Post ou Delete. Vamos deixar isso configurável também. Então, o tipo desse method não será String, vamos criar um tipo específico que chamaremos de RequestMethod.
+
+O header é onde podemos enviar informações adicionais em uma requisição. Podemos enviar, por exemplo, o token ou alguma configuração a mais que o back-end solicite. Vamos deixar o tipo dele como chave e valor. Ou seja, vamos abrir um par de colchetes e entre eles escolher um dicionário de String: String.
+
+E, por último, temos o body, com o qual podemos enviar informações no corpo da requisição. O tipo dele também pode ser um dicionário de String: String.
+
+Com isso, temos o scheme, o host, o path, o method, o header e o body.
+
+//
+// Endpoint.swift
+// Vollmed
+
+// Created by ALURA on 06/10/23.
+
+import Foundation
+
+protocol Endpoint {
+   var scheme: String { get }
+   var host: String { get }
+   var path: String { get }
+   var method: RequestMethod { get }
+   var header: [String: String] { get }
+   var body: [String: String] { get }
+}
+COPIAR CÓDIGO
+Tudo isso foi quebrado em pequenos pedaços para conseguirmos deixar isso mais reutilizável à medida que formos criando as requisições. Por enquanto, ele não vai deixar "buildar" (compilar) o projeto porque não existe esse RequestMethod, mas não tem problema, a seguir vamos criá-lo.
+
+Essa é a estrutura inicial que temos no primeiro arquivo, o Endpoint. E há algumas coisas nele que podemos deixar pré-configuradas, ou seja, coisas que não vão mudar com muita frequência, como o schema e o host. Por isso, vamos criar uma extensão desse protocolo.
+
+Para isso, abaixo do bloco de chaves do protocolo, adicionaremos o bloco extension Endpoint. Entre suas chaves vamos deixar, então, algumas coisas pré-configuradas. Por exemplo, o scheme, que é uma String. Vamos abrir um par de chaves para ele, em cujo interior podemos retornar o valor dela por meio de um return "http" que é um protocolo HTTP.
+
+Utilizamos o protocolo HTTP porque estamos em um ambiente de teste, ou seja, rodando uma aplicação Node que retorna essas informações que estamos exibindo na aplicação. Contudo, se fosse em um ambiente de produção, provavelmente utilizaríamos um HTTPS.
+
+Abaixo do bloco scheme, vamos deixar também pré-configurado o host, que também é uma String. Entre suas chaves, vamos retornar seu valor com aquele que estamos usando aqui: o localhost.
+
+//
+// Endpoint.swift
+// Vollmed
+
+// Created by ALURA on 06/10/23.
+
+import Foundation
+
+protocol Endpoint {
+   var scheme: String { get }
+   var host: String { get }
+   var path: String { get }
+   var method: RequestMethod { get }
+   var header: [String: String] { get }
+   var body: [String: String] { get }
+}
+
+extension Endpoint {
+   var scheme: String {
+       return "http"
+   }
+   var host: String {
+       return "localhost"
+   }
+}
+COPIAR CÓDIGO
+Como isso não será alterado com muita frequência, criamos essa extensão para que toda vez que alguém implementar esse protocolo, já venha com esse valor por padrão. Esse é o primeiro arquivo que criamos da nossa camada de networking. A seguir, vamos continuar com as implementações.
+
+@@05
+Os problemas das Views 'massivas' em projetos iOS
+
+Um dos principais problemas que encontramos em projetos em produção, são as chamadas Views 'massivas', ou massive ViewControllers. Por que massive View se torna um problema no projeto?
+
+"Views" massivas são uma prática recomendada em desenvolvimento iOS, pois tornam o código mais eficiente e fácil de gerenciar."Views" massivas são uma prática recomendada em desenvolvimento iOS, pois tornam o código mais eficiente e fácil de gerenciar.
+ 
+Alternativa correta
+"Views" massivas são Views em aplicativos iOS que são especialmente grandes em tamanho, o que aumenta o desempenho da interface do usuário.
+ 
+Alternativa correta
+"Views" massivas em aplicativos iOS que têm muitas responsabilidades diferentes, como gerenciamento de lógica de interface do usuário, lógica de negócios e chamadas para APIs. Isso é prejudicial porque viola o princípio de separação de responsabilidades e torna o código difícil de entender e manter.
+ 
+"Views" massivas ou seja, que têm muitas responsabilidades diferentes, como gerenciamento de lógica de interface do usuário, lógica de negócios e chamadas para APIs. Isso é prejudicial porque viola o princípio de separação de preocupações e torna o código difícil de entender e manter.
+Alternativa correta
+"Views" massivas referem-se a telas em aplicativos iOS com muitos elementos de interface do usuário, o que torna a experiência do usuário mais rica e envolvente.
+
+@@06
+Para saber mais: evitando a duplicidade de código em Swift - Métodos práticos para código mais limpo e eficaz
+
+Oi, tudo bem? Vamos falar de um assunto muito importante quando trabalhamos com programação: a duplicidade de código. No mundo da programação, precisamos sempre buscar a eficiência e simplicidade no nosso código, correto? Por isso, é tão importante evitar duplicar o mesmo código em diferentes partes do programa.
+Agora vem a pergunta: por que devemos evitar duplicidade de código? Simplesmente porque manter muitas cópias do mesmo código pode causar problemas sérios. Imagine que você tenha usado o mesmo bloco de código em 10 lugares diferentes. Se algo precisar ser mudado naquele bloco, você terá que lembrar de todos os 10 lugares para alterar. Além disso, o código duplicado torna o seu programa mais difícil de entender e manter.
+
+Então, como podemos evitar a duplicidade de código em Swift? Aqui estão algumas técnicas práticas!
+
+1. Reutilização de Código
+Trata-se de utilizar o mesmo código em diferentes partes do programa. Em Swift, você pode fazer isso, utilizando funções e métodos. Funções ajudam a agrupar blocos de código que realizam uma tarefa específica. Quando você precisa realizar essa tarefa em outra parte do programa, basta chamar a função, ao invés de escrever o mesmo código novamente.
+
+2. Herança e Polimorfismo
+Esses são dois conceitos chave na programação orientada a objetos. A herança permite que você crie uma nova classe, conhecida como subclasse, a partir de uma classe existente. A subclasse herda todos os atributos e comportamentos da classe mãe. Isso significa que você não precisa escrever o mesmo código na subclasse. O polimorfismo permite que a subclasse sobrescreva ou estenda o comportamento da classe mãe. Isso evita a duplicação de código, ao permitir que a subclasse tenha sua própria implementação de um método herdado.
+
+3. Protocolos
+Um protocolo define um conjunto de métodos que uma classe, estrutura ou enumeração pode adotar. Isso permite que você evite a duplicação de código, ao definir a implementação de um método em um protocolo, ao invés de várias classes.
+
+Gostou dessas dicas? Espero que ajude você a escrever códigos mais limpos e eficientes em Swift. Lembre-se: a simplicidade e a reutilização são fundamentais para um bom código. Continue a praticar e a aprofundar seus conhecimentos em Swift. Você está no caminho certo!
+
+@@07
+Faça como eu fiz: implementando MVVM em Swift
+
+A Clínica Médica Voll está tentando aprimorar seu aplicativo móvel para melhor gerenciamento de registros de pacientes e médicos. O aplicativo tem uma tela inicial onde os pacientes podem ver todos os especialistas disponíveis. No entanto, a ação de "logout" está atualmente acoplada à View, ao invés de estar no ViewModel. Sua tarefa é reestruturar o código para aderir ao padrão MVVM, o que significa mover o método de "logout" do View para o ViewModel para melhor separação de responsabilidades. Considere a reutilização do código e o desacoplamento.
+
+Criamos um model 'Patient' que contém as informações pertinentes que precisamos sobre um paciente. Em seguida, definimos uma 'view' que pode exibir um paciente ou um erro. O ViewModel é onde chamamos o serviço web para buscar os dados do paciente e, em seguida, atualizamos a 'view' de acordo. Dessa forma, cada componente tem sua própria responsabilidade: o Model guarda os dados, a View os exibe e o ViewModel os busca.
+Finalmente, o código define a View da página inicial, onde a função logout é chamada quando o botão de logout é pressionado.
+
+struct HomeViewModel {
+
+     let service = WebService()
+     var authManager = AuthenticationManager.shared
+
+     func logout() async {
+         do {
+             let response = try await service.logoutPatient()
+             if response {
+                 authManager.removeToken()
+                 authManager.removePatientID()
+             }
+         } catch {
+             print("ocorreu um erro no logout: \\(error)")
+         }
+     }
+}
+
+struct HomeView: View {
+
+     let service = WebService()
+     var viewModel = HomeViewModel()
+
+     var body: some View {
+         Button(action: {
+             Task {
+                 await viewModel.logout()
+             }
+         }, label: {
+             Text("Logout")
+         })
+     }
+}
+
+@@08
+O que aprendemos?
+
+Nessa aula, você aprendeu como:
+Aplicar o padrão Model View ViewModel (MVVM) em projetos de programação, especialmente na refatoração de código, melhorando a organização e manutenção.
+Implementar o método GetSpecialists no ViewModel, transferindo sua responsabilidade da View para o ViewModel.
+Refatorar o método de Logout, separando suas responsabilidades e transferindo suas funções da View para o ViewModel usando o padrão MVVM.
+Entender que o ViewModel não serve apenas para chamadas de API, mas também para validar regras de negócio.
+Compreender a importância de testar nosso código após cada refatoração. No vídeo, foi feito isso ao testar a funcionalidade de Logout após sua refatoração e a importância de organizar a estrutura do projeto para facilitar o gerenciamento de requisições, com o foco em aplicações MVVM.
+
