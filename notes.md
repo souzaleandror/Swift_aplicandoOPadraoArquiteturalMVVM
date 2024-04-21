@@ -800,3 +800,189 @@ Refatorar o método de Logout, separando suas responsabilidades e transferindo s
 Entender que o ViewModel não serve apenas para chamadas de API, mas também para validar regras de negócio.
 Compreender a importância de testar nosso código após cada refatoração. No vídeo, foi feito isso ao testar a funcionalidade de Logout após sua refatoração e a importância de organizar a estrutura do projeto para facilitar o gerenciamento de requisições, com o foco em aplicações MVVM.
 
+#### 21/04/2024
+
+@03-Camada de networking
+
+@@01
+Projeto da aula anterior
+
+Você pode revisar o seu código e acompanhar o passo a passo do desenvolvimento do nosso projeto e, se preferir, pode baixar o projeto da aula anterior.
+Bons estudos!
+
+https://github.com/alura-cursos/ios-mvvm-pattern/archive/refs/heads/aula-2.zip
+
+@@02
+Manuseando erros em requisições Swift
+
+Anteriormente, criamos o protocolo endpoint e na linha 14 temos um erro, pois não está sendo encontrado o RequestMethod, afinal, ainda não o criamos.
+Começaremos esse vídeo criando um menu para representar os diferentes tipos de método do projeto. Vamos lá!
+
+Configurando enums
+No menu lateral esquerdo do XCode, clicamos com o botão direito na pasta "base" e depois em "New File". Na janela que abre, selecionamos a opção "Swift File" e clicamos em "Next". Depois, nomeamos o novo arquivo como "RequestMethod" e clicamos no botão "Create".
+
+Ao invés de utilizarmos uma string, criaremos um enum, pois por meio dele conseguimos utilizar o valor que configuramos para cada case evitando erros de digitação, por exemplo.
+
+Após o import Foundation, na linha 10, começaremos criando um enumchamado RequestMethod que será do tipo String. Após adicionamos chaves. Dentro, passamos case delete igual à DELETE, entre aspas duplas, pois é uma string.
+
+Na linha abaixo, escrevemos case get igual à string GET. Em seguida, passamos case patch igual à string PATCH, seguido de case post igual à string POST e case put igual à string PUT. Assim, temos um enum, que é um RequestMethod.
+
+importFoundation
+
+enum RequestMethod: String {
+        se delete = "DELETE"
+        case get = "GET"
+        case patch = "PATCH"
+        case post = "POST"
+        case put = "PUT"
+}
+COPIAR CÓDIGO
+Endpoint
+Se voltarmos ao arquivo Endpoint, agora deve compilar. Pressionamos o comando "Command + B" para fazermos um build e verificar se não há erros. Está tudo funcionando bem. Com isso, fechamos o protocolo de endpoint.
+
+Outro arquivo que precisamos criar na pasta "base" é o de erro. Uma requisição pode ter vários tipos de erro, então mapearemos alguns deles.
+
+Criando o RequestError
+Clicamos com o botão direito na pasta "Base" e depois em "New File". Na janela que abre, selecionamos "Swift File" e clicamos no botão "Next", na lateral inferior direita. Nomeamos o arquivo de RequestError e clicamos em "Create".
+
+Na linha 10, criamos um enum chamado RequestError do tipo Error, ou seja, irá representar um erro em uma requisição. Abrimos chaves e dentro criamos o erro case decode, que é quando enviamos ou recebemos um objeto com um tipo diferente do esperado.
+
+Na linha abaixo, passamos case invalidURL, seguido de case noResponse, quando não há resposta. Criaremos também o erro para quando é feito o login sem enviar o token, para isso escrevemos case unauthorized.
+
+Também criamos o erro case unknow, que é desconhecido e o case custom(), nos parênteses passaremos uma mensagem de erro, então escrevemos _error: [String: Any].
+
+Além disso, também podemos deixar pré-definido um valor para cada tipo de erro, caso queiramos uma mensagem. Para isso, na linha 18, criamos a variável customMessage do tipo String {}.
+
+Nas chaves, podemos mapear cada caso de erro que criamos. Então, nas chaves passamos switch self {}. Nas chaves, na linha abaixo, passamos case .decode:. Dentro passamos o retorno de uma mensagem, então return"erro de decodificação".
+
+Na linha 22, escrevemos case .unauthotized. Abaixo passamos return "sessão expirada". Caso não seja nenhum desses erros, passamos também o default que retornará a mensagem erro desconhecido.
+
+import Foundation
+
+enum RequestError: Error {
+        case decode
+        case invalidURL
+        case noResponse
+        case unauthorized
+        case unknown
+        case custom(_ error: [String: Any])
+
+        var customMessage: String {
+                switch self {
+                case .decode: 
+                        return "erro de decodificação" 
+                case unauthorized:
+                        return "sessão expirada"
+                default:
+                        return "erro desconhecido "|
+        }
+}
+COPIAR CÓDIGO
+Esse é um exemplo de enum que podemos tratar alguns casos de erro em uma conexão. Esse é um template interessante para seu projeto, lembrando que você também pode adicionar outros casos e customizar as mensagens de erro.
+
+Te esperamos no vídeo seguinte!
+
+@@03
+Uso de protocolos e generics no Swift
+
+Criamos várias estruturas na pasta base, como o protocolo Endpoint, o RequestMethod em que mapeamos os verbos das requisições, e o enum de erro.
+Chegou o momento de juntarmos tudo. Para isso, criaremos o HTTPClient, que é a função que usaremos quando for preciso criar uma requisição.
+
+Criando o HTTPCLient
+Novamente, na basta "Base", clicamos com o botão direito e depois em "New File". Na janela que abre, selecionamos "Swift File" e clicamos no botão "Next". Depois, nomeamos o arquivo como HTTPClient e clicamos em "Create".
+
+Esse também será um protocolo, então na linha 10 escrevemos protocol HTTPClient {}. Esse protocolo terá um método que usaremos para, de fato, criar uma requisição.
+
+Então, nas chaves, na linha abaixo, escrevemos func sendRequest. A partir de agora usaremos uma estrutura um pouco diferente do que usamos anteriormente.
+
+Sempre que criamos um método ou uma variável, colocamos um tipo de parâmetro que o método espera receber. Um exemplo seria em sendRequest() passar nos parênteses _ email: String.
+
+Porém, como estamos criando uma estrutura reutilizável, usaremos um recurso chamado Generics. A ideia dos genéricos é utilizar tipos onde não precisamos pré-defini-los na implementação do método e sim quando formos utilizá-lo.
+
+Então, em sendRequest, colocamos o sinal de menor e maior <> e dentro colocaremos T: Decodable. o T significa que é um tipo genérico que precisa implementar o protocolo Decodable, ou seja, quando for utilizar essa função, precisamos passar um tipo que implemente o protocolo Decodable.
+
+Continuaremos escrevendo o nosso método, então, após o sinal de maior, adicionamos parênteses. Dentro, passamos endpoint: Endpoint que é o arquivo que criamos anteriormente. Adicionamos vírgula e passamos responseModel: T.Type. Tudo isso será uma função assíncrona, então, fora dos parênteses, escrevemos async.
+
+Na mesma linha passamos ->. O retorno do método será um Result<> do tipo genérico T ou o erro RequestError.
+
+import Foundation
+
+protocol HTTPClient {
+        func sendRequest<T: Decodable> (endpoint: Endpoint, responseModel: T.Type) async -> 
+                Result<T, RequestError>
+}
+COPIAR CÓDIGO
+Essa é a estrutura do método sendRequest. A princípio, pode parecer um pouco estranho ao criá-lo pela primeira vez, já que não tem um tipo fixo. Porém, essa é a estrutura do generics.
+
+Na próxima aula descobriremos como utilizar esse método que criamos utilizando os generics. Até lá!
+
+@@04
+Todas as requisições em um arquivo
+
+Durante a aula, analisamos o projeto VollMed desenvolvido até o momento. Percebemos que a classe WebService é responsável pela implementação de todos os métodos de requisição do aplicativo. Quais são possíveis problemas que você poderia destacar ao colocar todos os métodos em uma única classe:
+
+Colocar todos os métodos de requisição em uma única classe é uma prática recomendada em desenvolvimento de software, pois facilita o gerenciamento das requisições.
+ 
+Alternativa correta
+A classe WebService, apesar de cuidar apenas de requisições http, pode se tornar um arquivo muito grande a medida que o projeto cresce. Ou seja, não é escalável.
+ 
+Esse tipo de implementação pode crescer a medida que o projeto aumentar, o que acarretaria em problemas de manutenção.
+Alternativa correta
+Concentrar todas as requisições no mesmo arquivo pode prejudicar a escalabilidade do projeto, e dificultaria o entendimento de quais requisições pertencem a quais funcionalidades do projeto.
+ 
+Quando colocamos tudo em um único lugar, se torna muito mais complicado de encontrar e entender o que faz cada requisição no projeto.
+Alternativa correta
+O arquivo pode ficar muito grande, o que implicaria na demora do tempo de resposta de uma requisição.
+ 
+Parabéns, você acertou!
+
+@@05
+Faça como eu fiz: refatorando Clínica Voll com MVVM
+
+A Clínica Médica Voll enfrenta um problema envolvendo o registro de consultas. O código para registro de consultas está misturado no arquivo ConsultaViewController com muita lógica de negócio. Seu objetivo é refatorar o código para o padrão Model-View-ViewModel (MVVM) separando a lógica de negócio da View, aumentando assim a manutenibilidade e a legibilidade do código.
+class ConsultaViewController: UIViewController {
+    var consulta: Consulta?
+
+    // Lógica de negócios misturada com a vista
+    func confirmarConsulta() {
+        guard let consulta = consulta else {
+            return
+        }
+
+        consulta.status = .confirmada
+        // .... Código para atualizar UI ....
+    }
+}
+
+Refatorar o código para o padrão MVVM implica em isolar a lógica de negócio em um ViewModel:
+class ConsultaViewModel {
+    var consulta: Consulta?
+
+    func confirmarConsulta() {
+        guard let consulta = consulta else {
+            return
+        }
+
+        consulta.status = .confirmada
+    }
+}
+
+class ConsultaViewController: UIViewController {
+    var viewModel: ConsultaViewModel?
+
+    func confirmarConsultaTouchUpInside() {
+        viewModel?.confirmarConsulta()
+        // Código para atualizar UI
+    }
+}
+
+@@06
+O que aprendemos?
+
+Nessa aula, você aprendeu como:
+Criar um protocolo Endpoint em Swift e como corrigir erros comuns que podem surgir nesta etapa.
+Criar uma enumeração para diferentes tipos de erros que podem ocorrer durante uma requisição, essencial para um bom gerenciamento de erros.
+Personalizar mensagens de erro, permitindo uma melhor interpretação e resolução de problemas.
+Criar várias estruturas para organizar o nosso código, incluindo um protocolo endpoint, um request method e um enum de erro.
+Criar um HTTP client para realizar requisições. Este é um exemplo prático de como juntar várias partes de código para criar uma estrutura mais complexa.
+Utilizar decodable juntamente com genéricos para criar tipos genéricos que implementem um protocolo específico.
