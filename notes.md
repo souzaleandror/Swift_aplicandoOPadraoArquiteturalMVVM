@@ -986,3 +986,950 @@ Personalizar mensagens de erro, permitindo uma melhor interpretação e resoluç
 Criar várias estruturas para organizar o nosso código, incluindo um protocolo endpoint, um request method e um enum de erro.
 Criar um HTTP client para realizar requisições. Este é um exemplo prático de como juntar várias partes de código para criar uma estrutura mais complexa.
 Utilizar decodable juntamente com genéricos para criar tipos genéricos que implementem um protocolo específico.
+
+#### 22/04/2024
+
+@04-Criando HTTPClient
+
+@@01
+Projeto da aula anterior
+
+Você pode revisar o seu código e acompanhar o passo a passo do desenvolvimento do nosso projeto e, se preferir, pode baixar o projeto da aula anterior.
+Bons estudos!
+
+https://github.com/alura-cursos/ios-mvvm-pattern/archive/refs/heads/aula-3.zip
+
+@@02
+Implementando o protocolo HTTP Client
+
+Agora que já temos a estrutura do nosso método no protocolo HTTPClient, ou seja, o método sendRequest, é hora de implementarmos a lógica desse método.
+Implementando a lógica do método
+HTTPClient
+import Foundation
+
+protocol HTTPClient {
+func pendRequest<T: Decodable> (endpoint: Endpoint, responseModel: T.Type) async -> Result<T, RequestError>
+}
+COPIAR CÓDIGO
+Por isso, vamos começar criando uma extensão, extension HTTPClient após o fechamos de chaves. Agora será um trabalho mais intenso, porque teremos que fazer toda a configuração de uma requisição, mas apenas uma vez.
+
+HTTPClient
+import Foundation
+
+protocol HTTPClient {
+func pendRequest<T: Decodable> (endpoint: Endpoint, responseModel: T.Type) async -> Result<T, RequestError>
+}
+
+extension HTTPClient {
+
+}
+COPIAR CÓDIGO
+Clicando na classe WebService do lado esquerdo, temos, por exemplo, no método logout, a mesma implementação várias vezes em vários métodos de requisição.
+
+WebService
+// código omitido
+
+func logoutPatient() async throws -> Bool {
+let endpoint = baseURL + "/auth/logout"
+
+guard let url = URL(string: endpoint) else {
+print("Erro na URL!") 
+return false
+}
+
+guard let token = authManager.token else {
+print("Token não informado!")
+return false
+}
+var request = URLRequest(url: url)
+request.httpMethod = "POST" 
+request.addValue("Bearer \(token), forHTTPHeaderField: "Authorization")
+
+let (_, response) = try await URLSession.shared.data(for: request)
+
+if let httpResponse = response as ? HTTPURLResponse, httpResponse.statusCode == 200 {
+return true
+}
+return false
+}
+
+// código omitido
+COPIAR CÓDIGO
+Então, no método da linha 41 de loginPatient(), como já analisamos anteriormente, temos várias implementações iguais. A ideia da classe do nosso protocolo HTTP Client, vamos abri-lo aqui novamente, é implementarmos uma única vez e depois reutilizá-la.
+
+Dentro de extension ficará a implementação do método sendRequest(). Aqui ele não está dando autocomplete, mas para ganhar tempo podemos copiar a linha 11 e vamos colá-la dentro de extension HTTPClient{}. A única diferença é que agora iremos abrir e fechar chaves para colocarmos dentro a implementação.
+
+Por enquanto, temos:
+
+HTTPClient
+import Foundation
+
+protocol HTTPClient {
+func pendRequest<T: Decodable> (endpoint: Endpoint, responseModel: T.Type) async -> Result<T, RequestError>
+}
+
+extension HTTPClient {
+func pendRequest<T: Decodable> (endpoint: Endpoint, responseModel: T.Type) async -> Result<T, RequestError> {
+
+}
+}
+COPIAR CÓDIGO
+Iniciaremos criando na linha 17 uma variável que se chamará UrlComponents e ela será igual à classe que temos UrlComponents. Instanciamos o UrlComponents e a partir dele conseguimos criar vários pedaços da URL para depois ele formatar e virar uma única URL.
+
+Na linha seguinte, podemos chamar UrlComponents.scheme, que será igual a algo que veremos. Podemos pegar aqui UrlComponents.host, que é igual a algum valor que vamos atribuir.
+
+HTTPClient
+import Foundation
+
+protocol HTTPClient {
+func pendRequest<T: Decodable> (endpoint: Endpoint, responseModel: T.Type) async -> Result<T, RequestError>
+}
+
+extension HTTPClient {
+func pendRequest<T: Decodable> (endpoint: Endpoint, responseModel: T.Type) async -> Result<T, RequestError> {
+
+var UrlComponents = UrlComponents()
+UrlComponents.scheme = 
+UrlComponents.host = 
+}
+}
+COPIAR CÓDIGO
+Parece que já vimos uma estrutura que tem scheme, que tem host, que tem path. Vamos analisar o arquivo Endpoints dentro da pasta Base. Então, vamos abrir novamente o nosso protocolo.
+
+Endpoints
+import Foundation
+
+protocol Endpoint {
+var scheme: String { get } 
+var host: String { get }
+var path: String { get }
+var method: RequestMethod { get}
+var header: [String: String] { get }
+var body: [String: String] { get}
+}
+
+extension Endpoint {
+var scheme: String { 
+return "http" 
+}
+var host: String {
+return "localhost" 
+}
+}
+COPIAR CÓDIGO
+Agora é hora de utilizarmos exatamente essa estrutura que criamos, que é configurável, uma única vez dentro do nosso protocolo. Voltando ao arquivo HTTP Client.
+
+Tudo o que fizemos até agora vamos usar nesse UrlComponents. E ele será igual ao endpoint que estamos recebendo por parâmetro na linha 15. Copiamos então o endpoint e iremos utilizá-lo na linha 18. endpoint.scheme.
+
+Na linha 19, endpoint.host. Na linha seguinte, temos que terminar de configurar o nosso UrlComponents. Depois de host, na linha 20, configuramos o path, que é igual ao endpoint.path. Na linha 21, digitamos UrlComponents. Repare que no nosso caso, por estarmos rodando a aplicação localmente, usamos isso na porta 3000.
+
+HTTPClient
+import Foundation
+
+protocol HTTPClient {
+func pendRequest<T: Decodable> (endpoint: Endpoint, responseModel: T.Type) async -> Result<T, RequestError>
+}
+
+extension HTTPClient {
+func pendRequest<T: Decodable> (endpoint: Endpoint, responseModel: T.Type) async -> Result<T, RequestError> {
+
+var UrlComponents = UrlComponents()
+UrlComponents.scheme = endpoint.scheme
+UrlComponents.host = endpoint.host
+UrlComponents.path = endpoint.path
+UrlComponents.
+}
+}
+COPIAR CÓDIGO
+Verificando a porta
+Abrimos o terminal. Como sabemos que é na porta 3000? O terminal nos mostra quando rodamos o nosso projeto em Node.
+
+server running on port 3000
+Portanto, rodamos na porta 3000.
+
+Assim como no arquivo Endpoints, vamos abri-lo. Não especificamos a porta, e é uma boa prática não fazê-lo neste momento. Agora, teremos que configurar a porta no UrlComponents.
+
+Abrimos o HTTP Client novamente. Após o urlComponents, inserimos um .port. Note que precisamos passar um Int, que representa a porta em que estamos executando nossa aplicação. Portanto, vamos passar 3000.
+
+Mas e se não estivermos executando isso localmente? Se estivermos usando um serviço na nuvem? Nesse caso, não será necessário essa linha. Estamos adicionando apenas porque estamos executando isso localmente.
+
+HTTPClient
+import Foundation
+
+protocol HTTPClient {
+func pendRequest<T: Decodable> (endpoint: Endpoint, responseModel: T.Type) async -> Result<T, RequestError>
+}
+
+extension HTTPClient {
+func pendRequest<T: Decodable> (endpoint: Endpoint, responseModel: T.Type) async -> Result<T, RequestError> {
+
+var UrlComponents = UrlComponents()
+UrlComponents.scheme = endpoint.scheme
+UrlComponents.host = endpoint.host
+UrlComponents.path = endpoint.path
+UrlComponents.port = 3000
+}
+}
+COPIAR CÓDIGO
+Configuramos a URL. Agora, de fato, vamos criar essa URL.
+
+Criando a URL
+Pulamos uma linha e digitamos guard let url é igual a UrlComponents.url. Se der algum problema na hora de montar a URL, já podemos retornar uma falha. Em seguida, podemos retornar um erro.
+
+HTTPClient
+// código omitido
+
+var UrlComponents = UrlComponents()
+UrlComponents.scheme = endpoint.scheme
+UrlComponents.host = endpoint.host
+UrlComponents.path = endpoint.path
+UrlComponents.port = 3000
+
+guard let url = UrlComponents.url else {
+return 
+}
+}
+}
+COPIAR CÓDIGO
+Note que na assinatura do nosso método, após o async, na linha 11, temos o retorno do método representado pela seta ->, que é um Result, que pode ser algo genérico <T ou um erro do tipo RequestError.
+
+Criamos esse enum de erro. Vamos abrir o arquivo RequestError no menu lateral esquerdo.
+
+RequestError
+// código omitido
+
+enum RequestError: Error {
+case decode
+case invalidURL
+case noResponse
+case unauthorized
+case unknown
+case custom( error: [String: Any])
+
+// código omitido
+COPIAR CÓDIGO
+E observe que em nosso enum, temos aqui na linha 12 um caso de URL inválida. Podemos utilizar esse caso se não conseguirmos construir a URL. Vamos voltar ao HTTP Client. Então, já poderíamos retornar um erro caso não consigamos criar a URL. Qual é o erro? invalidURL.
+
+Continuando, na linha 27, podemos criar o URLRequest, que criamos em todas as requisições. Então, chamamos de request que será igual a URLRequest. Quando o instanciamos, podemos passar a URL. A URL acabamos de criar na linha 23. Então, iremos utilizá-la aqui na linha 27 passando-a como parâmetro.
+
+HTTPClient
+// código omitido
+
+var UrlComponents = UrlComponents()
+UrlComponents.scheme = endpoint.scheme
+UrlComponents.host = endpoint.host
+UrlComponents.path = endpoint.path
+UrlComponents.port = 3000
+
+guard let url = UrlComponents.url else {
+return .failure(.invalidURL)
+}
+
+var request = URLRequest(url: url)
+
+}
+}
+COPIAR CÓDIGO
+No request, também temos algumas configurações adicionais que podemos ajustar. Vamos passar o request.httpMethod, que representa o método da requisição, ou seja, o verbo utilizado: GET, PUT, DELETE.
+
+Para evitar repetições, estamos passando isso como parâmetro. Então, vamos pegar o endpoint.method. Como se trata de um enum e queremos o valor, utilizaremos o .rawValue. Dessa forma, ele acessa o valor específico do enum. Por isso, incluímos esse rawValue.
+
+Além disso, temos também o header disponível, caso queiram passar alguma informação através do header da requisição. Então, em nossa request, utilizaremos a propriedade allHTTPHeaderFields. Vamos definir que ela é equivalente a endpoint.headers.
+
+Para concluir, podemos enviar informações também através do body, ou seja, do corpo da requisição. Então, vamos verificar se há algo que foi fornecido no corpo da requisição. Em nossa implementação, na linha 31, estamos checando se há algo a ser enviado no body da requisição. Portanto, utilizaremos a condição if let body igual a endpoint.body.
+
+HTTPClient
+// código omitido
+
+guard let url = UrlComponents.url else {
+return .failure(.invalidURL)
+}
+
+var request = URLRequest(url: url)
+request.httpMethod = endpoint.method.rawValue
+request.allHTTPHeaderFields = endpoint.headers
+
+if let body = endpoint.body {
+
+}
+}
+}
+COPIAR CÓDIGO
+Como aqui ele não é um opcional, na linha 31, clicamos em cima de body. Seremos redirecionados para a linha 16 do arquivo Endpoint.
+
+Endpoint
+// código omitido
+
+var body [String: String] { get }
+
+// código omitido
+COPIAR CÓDIGO
+Como podemos ter conteúdo ou não no body, no nosso protocolo, vamos deixá-lo opcional. Então, na linha 16, após definirmos o protocolo, o tornaremos opcional adicionando um ponto de interrogação após o fechamento dos colchetes.
+
+Endpoint
+// código omitido
+
+var body [String: String]? { get }
+
+// código omitido
+COPIAR CÓDIGO
+Voltaremos então ao nosso HTTP Client. Se houver conteúdo no body, pegaremos o request.httpBody e o enviaremos através do body. Como fazemos isso? Utilizando try? JSONSerialization.data. Em seguida, passamos isso para o body.
+
+HTTPClient
+// código omitido
+
+guard let url = UrlComponents.url else {
+return .failure(.invalidURL)
+}
+
+var request = URLRequest(url: url)
+request.httpMethod = endpoint.method.rawValue
+request.allHTTPHeaderFields = endpoint.headers
+
+if let body = endpoint.body {
+request.httpBody = try? JSONSerialization.data(withJSONObject: body)
+}
+}
+}
+COPIAR CÓDIGO
+Por enquanto, ainda está reclamando, porque precisamos retornar o método com um Result, mas ainda não terminamos a implementação. Mas até aqui, é isso que queria mostrar para vocês.
+
+Estamos implementando uma única vez e vamos reutilizar todas as vezes que for necessário com apenas uma implementação. Está dando trabalho, mas estamos criando isso apenas uma vez para depois reutilizar.
+
+Então, continuaremos no próximo vídeo!
+
+@@03
+Tratando respostas do servidor
+
+Agora que temos tudo o que precisamos para, de fato, enviar a requisição para o servidor, vamos terminar a implementação desse método sendRequest utilizando todas as configurações que já estávamos fazendo.
+HTTPClient
+// código omitido
+
+guard let url = UrlComponents.url else {
+return .failure(.invalidURL)
+}
+
+var request = URLRequest(url: url)
+request.httpMethod = endpoint.method.rawValue
+request.allHTTPHeaderFields = endpoint.headers
+
+if let body = endpoint.body {
+request.httpBody = try? JSONSerialization.data(withJSONObject: body)
+}
+}
+}
+COPIAR CÓDIGO
+Na linha 35 do arquivo HTTPClient, começaremos, de fato, a enviar tudo isso para o servidor. Como pode ocorrer algum erro por ter a throwFunction dentro desses métodos, começaremos usando um do {} catch{}. Dentro do do{}, criaremos uma constante que terá duas variáveis dentro; chamamos isso de tupla em Swift.
+
+Uma será com os dados (data) e a outra será com a resposta (response). Tudo isso será igual ao try await, e então usaremos a classe URLSession, que já conhecemos dos cursos anteriores. Chamaremos esse método de data, onde passaremos o URLRequest.
+
+HTTPClient
+// código omitido
+
+if let body = endpoint.body {
+request.httpBody = try? JSONSerialization.data(withJSONObject: body)
+}
+do {
+let (data,response) = try await URLSession.shared.data(for: URLRequest)
+} catch {
+
+}
+}
+}
+COPIAR CÓDIGO
+**O que é esse parâmetro, o URLRequest? **
+
+São as configurações que fizemos na linha 27. Criamos um URLRequest, passando a url, configuramos o método na linha 28, e se houver cabeçalho (header) na requisição, estamos também passando pelo parâmetro allHTTPHeaderFields. Estamos utilizando tudo isso que configuramos aqui na linha 27 na nossa requisição na linha 36.
+
+HTTPClient
+// código omitido
+
+var request = URLRequest(url: url)
+request.httpMethod = endpoint.method.rawValue
+request.allHTTPHeaderFields = endpoint.headers
+
+// código omitido
+COPIAR CÓDIGO
+Então, passaremos o request após o for:. Ele tem um segundo parâmetro, que é esse delegate, vamos passar nil, porque não vamos utilizar. Feito isso, faremos uma verificação para analisar se existem valores nessas variáveis, porque com base nisso, conseguiremos saber se a requisição funcionou ou não. Para isso, converteremos o response da linha 36 em um tipo que é o HTTPURLResponse.
+
+Criaremos na linha 38 um guard let, que chamaremos de response, que será igual à resposta que temos na linha 36. Ou seja, verificaremos se há valor, se houver, tentaremos converter para essa classe HTTPURLResponse. Caso não consigamos, significa que já temos aqui o primeiro erro.
+
+Podemos corrigir um erro. O erro consiste em não ter uma resposta; portanto, vamos retornar .failure, passando um erro. Já criamos um enum onde configuramos alguns erros que podem ocorrer em nossa requisição, este é o enum chamado RequestError.
+
+HTTPClient
+// código omitido
+
+if let body = endpoint.body {
+request.httpBody = try? JSONSerialization.data(withJSONObject: body)
+}
+do {
+let (data,response) = try await URLSession.shared.data(for: request,
+delegate:nil)
+
+guard let response = response as? HTTPURLResponse else {
+return .failured()
+}
+
+
+} catch {
+
+}
+}
+}
+COPIAR CÓDIGO
+No menu lateral esquerdo, temos o arquivo RequestError, e temos um caso de noResponse, e é ele que vamos utilizar lá.
+
+RequestError
+// código omitido
+
+case noResponse
+
+// código omitido
+COPIAR CÓDIGO
+Voltando no arquivo HTTPClient, digitamos .noResponse, na linha 39, então, já temos a primeira validação, se temos uma resposta vinda do servidor ou não.
+
+HTTPClient
+// código omitido
+
+if let body = endpoint.body {
+request.httpBody = try? JSONSerialization.data(withJSONObject: body)
+}
+do {
+let (data,response) = try await URLSession.shared.data(for: request,
+delegate:nil)
+
+guard let response = response as? HTTPURLResponse else {
+return .failured(.noResponse)
+}
+
+
+} catch {
+
+}
+}
+}
+COPIAR CÓDIGO
+Continuando, com base nisso, conseguimos fazer algumas verificações baseadas no código de status (statusCode).
+
+statusCode: qualquer requisição que fazemos para o servidor, ele devolve uma resposta e um código.
+Vamos visualizar os principais códigos aqui, por exemplo, respostas da classe de 200, ou seja, código de status de 200 até 299, já sabemos que geralmente é sucesso. Com base nesses códigos de status, conseguimos fazer algumas validações para garantir a resposta correta para a pessoa usuária.
+
+Como fazemos isso? Vamos criar um switch. Pegaremos a response que foi criada na linha 38 e faremos uma verificação usando response.statusCode. No primeiro caso, o que faremos é o seguinte: no case em que o código estiver entre 200 e 299, sabemos que foi um sucesso.
+
+O que faremos aqui? Vamos extrair o valor retornado pelo servidor e convertê-lo. Em outras palavras, faremos a decodificação desse valor em um objeto que será passado como parâmetro. A razão pela qual configuramos esse método com generics é crucial nesse ponto.
+
+HTTPClient
+// código omitido
+
+do {
+let (data,response) = try await URLSession.shared.data(for: request,
+delegate:nil)
+
+guard let response = response as? HTTPURLResponse else {
+return .failured(.noResponse)
+}
+
+switch response.statusCode {
+case 200…299:
+}
+
+} catch {
+
+}
+}
+}
+COPIAR CÓDIGO
+Vamos navegar até a definição do nosso protocolo, na linha 11.
+
+HTTPClient
+import Foundation
+
+protocol HTTPClient {
+func pendRequest<T: Decodable> (endpoint: Endpoint, responseModel: T.Type) async -> Result<T, RequestError>
+}
+
+// código omitido
+COPIAR CÓDIGO
+Nesta instância, precisamos receber um tipo, que não é especificado, pois é genérico. Isso significa que podemos usar qualquer tipo, contanto que ele implemente o protocolo Decodable.
+
+Por que realizamos essa ação? Porque é essencial empregar esse protocolo para transformar o que o servidor nos enviou no objeto que estamos recebendo nesta situação. Embora não saibamos precisamente qual é esse objeto, temos a certeza de que ele deve obedecer a uma restrição específica, que é a implementação do protocolo Decodable.
+
+Dessa forma, tornamos nosso método altamente reutilizável, pois não é preciso definir um tipo específico; em vez disso, optamos por um tipo genérico. Isso proporciona uma flexibilidade notável.
+
+Retornando à linha 44, vamos tentar realizar essa conversão do que o servidor nos devolveu, ou seja, decodificar para o objeto que recebemos por parâmetro. Então, guard let, iremos denominar isso de responseModel, que é igual ao responseModel presente na assinatura do nosso método.
+
+Se não conseguirmos obter esse valor, significa que nosso método é um get, por exemplo, não o obtém, ou seja, não estamos aguardando nenhum objeto para a decodificação. Nesse caso, o que podemos fazer? Simplesmente dar um return .success, mas sem passar nenhum valor.
+
+Minha requisição não necessita que passe nenhum parâmetro.
+
+HTTPClient
+// código omitido
+
+do {
+let (data,response) = try await URLSession.shared.data(for: request,
+delegate:nil)
+
+guard let response = response as? HTTPURLResponse else {
+return .failured(.noResponse)
+}
+
+switch response.statusCode {
+case 200…299:
+guard let responseModel = responseModel else {
+return .success(nil)
+}
+
+}
+
+} catch {
+
+}
+}
+}
+COPIAR CÓDIGO
+Aqui estamos reclamando que não podemos passar nil, mas podemos alterar a definição do método como opcional adicionando um ponto de interrogação após o Type das linhas 11 e 15.
+
+HTTPClient
+import Foundation
+
+protocol HTTPClient {
+func pendRequest<T: Decodable> (endpoint: Endpoint, responseModel: T.Type?) async -> Result<T, RequestError>
+}
+
+extension HTTPClient {
+func pendRequest<T: Decodable> (endpoint: Endpoint, responseModel: T.Type?) async -> Result<T, RequestError> {
+
+}
+}
+COPIAR CÓDIGO
+Por que opcional? Por exemplo, se estivermos fazendo uma requisição do tipo get, não precisamos devolver um objeto, um modelo de resposta. Podemos apenas indicar que a requisição foi bem-sucedida, sem precisar devolver nenhum objeto.
+
+No entanto, no caso de uma requisição do tipo post, precisamos realmente realizar a decodificação desse objeto. Portanto, ainda falta essa etapa, e vamos abordar isso no próximo vídeo.
+
+Até mais!
+
+@@04
+Implementação de decodificação de respostas
+
+Continuando, acabamos de tratar o caso onde a requisição retorna 200, mas não precisamos enviar nenhum objeto, nem retornar nenhum objeto decodificado. Esse é o primeiro caso de 200.
+HTTPClient
+// código omitido
+
+do {
+let (data,response) = try await URLSession.shared.data(for: request,
+delegate:nil)
+
+guard let response = response as? HTTPURLResponse else {
+return .failured(.noResponse)
+}
+
+switch response.statusCode {
+case 200…299:
+guard let responseModel = responseModel else {
+return .success(nil)
+}
+
+} catch {
+
+}
+}
+}
+COPIAR CÓDIGO
+Temos também outro caso de erro 200, que ocorre quando fazemos uma requisição e o servidor devolve um JSON ou um formato binário, e precisamos converter isso para um objeto que temos no projeto, ou seja, precisamos fazer a decodificação. Neste caso, realmente precisamos devolver um objeto.
+
+Decodificando o objeto
+Então, qual será nosso próximo passo? Vamos criar um guard let para lidar com esse caso de resposta decodificada, decodeResponse. Usaremos o JSONDecoder na linha 49. Vamos instanciar e chamar o método decode.
+
+Neste método, precisamos passar um objeto e os dados que o servidor retornou. Já temos o objeto, que é esse modelo de resposta genérico (responseModel). Então, esta é a parte interessante, porque na assinatura do método, na linha 15, solicitamos um responseModel genérico como parâmetro e agora o usaremos para realizar essa decodificação.
+
+Vamos passar o responseModel em decode(). E em relação à data, vamos passar os dados que temos, localizados na linha 36. Criamos essa tupla.
+
+O que faremos com isso? Se não funcionar, ou seja, se entrarmos no bloco else, retornaremos um erro. Então, faremos return .failure e passaremos um erro de decodificação, se ocorrer falha.
+
+Se funcionar, retornaremos, de fato, o objeto decodificado. Portanto, usaremos .success e passaremos o response decodificado (decodeResponse).
+
+HTTPClient
+// código omitido
+
+do {
+let (data,response) = try await URLSession.shared.data(for: request,
+delegate:nil)
+
+guard let response = response as? HTTPURLResponse else {
+return .failured(.noResponse)
+}
+
+switch response.statusCode {
+
+case 200…299:
+guard let responseModel = responseModel else {
+return .success(nil)
+}
+
+guard let decodeResponse = try? JSONDecoder().decode(responseModel,
+from: data) else {
+return .failured(.decode)
+}
+
+return .success(decodeResponse)
+
+} catch {
+
+}
+}
+}
+COPIAR CÓDIGO
+Esse é o caso de sucesso.
+
+Tratando os erros
+Temos também a possibilidade de lidar com casos de erro. Por exemplo, um erro comum é o 401. Mapearemos esse erro também. O erro 401 ocorre quando a pessoa usuária não tem autorização para realizar uma determinada requisição.
+
+Por exemplo, algum endpoint onde precisamos do token da pessoa usuária, ou seja, quando ela faz o login, ela guarda um token e esse token é uma chave de acesso que pode ser utilizada para obter algumas informações no aplicativo.
+
+Se não enviarmos esse token no header de uma requisição, o servidor pode devolver um erro 401 de não autorizado. Esse é um caso clássico onde temos um erro de não autorizado. A pessoa usuária não está autorizada a pegar determinado recurso do servidor.
+
+Existem vários status codes. Estamos passando pelos principais, incluindo o erro 400. O erro 500 ocorre quando há algum problema de implementação no back-end.
+
+Como não vamos abordar todos eles, vamos estabelecer um default para lidar com erros que não estejam na faixa de 200 a 299, conforme indicado na linha 44, e também para o erro 401, que foi mapeado na linha 54.
+
+Optaremos por enviar um erro padrão. Dessa forma, iremos reportar uma falha, por exemplo, um erro desconhecido, para conseguirmos mapear a nossa ocorrência. É necessário fechar mais uma chave. Portanto, após a linha 58, iremos encerrar o nosso switch case.
+
+HTTPClient
+// código omitido
+
+switch response.statusCode {
+
+case 200…299:
+guard let responseModel = responseModel else {
+return .success(nil)
+}
+
+guard let decodeResponse = try? JSONDecoder().decode(responseModel,
+from: data) else {
+return .failured(.decode)
+}
+
+return .success(decodeResponse)
+
+case 401:
+return .failure(.unauthorized)
+
+default:
+return .failure(.unknown)
+}
+
+} catch {
+
+}
+}
+}
+COPIAR CÓDIGO
+Para finalizar essa implementação, temos o catch na linha 61, onde também precisamos retornar um erro, porque a tentativa de fazer a requisição falhou, e precisamos informar isso para o método que invocou essa função.
+
+Vamos dar um return failure, e também pode ser uma falha desconhecida, e conseguimos tratar isso de diversas maneiras. Vamos apagar esse espaço na linha 64.
+
+O código ficou um pouco extenso, como vocês puderam visualizar nesses últimos vídeos, mas o mais interessante é que implementamos ele uma única vez, e agora sempre que precisarmos, vamos conseguir reutilizar isso sem precisar ficar copiando e colando o código.
+
+HTTPClient
+// código omitido
+
+} catch {
+return .failure(.unknown)
+}
+}
+}
+COPIAR CÓDIGO
+Para verificar se está tudo funcionando, teclamos "Command + B".Compilou com sucesso. Vamos rodar o simulador clicando com o botão no ícone de play na parte superior.
+
+No simulador exibido, há o logotipo da VollMed na parte superior central, a mensagem de boas-vindas e abaixo a lista de especialistas. No canto superior direito há o botão "logout".
+
+Temos então uma estrutura onde podemos reutilizar bastante parte do código da criação de uma requisição.
+
+Próximos Passos
+O próximo passo é de fato criar um endpoint, usando tudo isso que fizemos até agora, e começar a refatoração no nosso projeto.
+
+Vamos aprender isso a seguir!
+
+@@05
+Organizando o projeto com endpoints
+
+Transcrição
+
+Para finalizar essa aula, vamos utilizar tudo o que construímos até agora.Desde o HTTPClient, que terminamos no último vídeo, o RequestMethod, o RequestError e o Endpoint, todos esses arquivos que estão dentro da pasta Base de Networking.
+Vamos juntar para começar a organizar nosso projeto em relação ao arquivo WebService, que é aquele que tem todas as requisições.
+
+Na pasta networking, trabalhamos bastante na Base, criando os quatro arquivos, e agora vamos começar a criar o primeiro endpoint.
+
+Criando o primeiro endpoint
+Neste momento, você vai começar a enxergar valor, de fato, em tudo isso que fizemos até esse momento. Conseguimos, a partir de agora, começar a separar os endpoints por feature, ou seja, por funcionalidade no nosso projeto.
+
+No arquivo WebService, agrupamos todas as APIs em um único arquivo. Daqui em diante, vamos organizá-las por funcionalidade.
+
+Dessa forma, se novas pessoas desenvolvedoras entrarem para trabalhar no projeto, será mais fácil para elas abrir um arquivo que lista todas as chamadas para APIs de uma determinada funcionalidade, em vez de tentar compreender tudo o que está contido em um único arquivo.
+
+Assim, a implementação do nosso projeto começará a se tornar mais eficiente.
+
+Dentro da pasta Endpoints que temos na árvore de pastas do nosso projeto, clicamos com o botão direito para gerar um novo arquivo Swift file. Na sequência selecionamos "Next". O arquivo que vamos criar se chama HomeEndpoint e clicamos em "Create" no canto inferior direito.
+
+HomeEndpoint
+import Foundation
+COPIAR CÓDIGO
+A proposta é que criemos um enum abrangendo todos os métodos relacionados à home, todas as chamadas de API. Vamos desenvolver um enum que chamaremos de HomeEndpoint e, dentro desse enum, incluiremos os diversos cases.
+
+No primeiro caso que temos, vamos abrir o simulador mais uma vez. Pegaremos como exemplo a listagem de médicos. Essa representa a primeira chamada que encontramos na home ao acessarmos nosso aplicativo. É um método que realiza um GET de todos os especialistas. Portanto, fazemos um GET de todos os especialistas.
+
+HomeEndpoint
+import Foundation
+
+enum HomeEndpoint {
+    case getAllSpecialists
+}
+COPIAR CÓDIGO
+Com este primeiro caso, já podemos colocar em prática o protocolo endpoint que desenvolvemos. Sendo assim, vamos abrir o protocolo, selecionando o arquivo Endpoint no lado esquerdo. Dentro desse protocolo, há várias configurações que podemos ajustar, e é exatamente isso que iremos realizar agora em nosso HomeEndpoint.
+
+Endpoint
+// código omitido
+
+protocol Endpoint {
+var scheme: String get}
+var host: String { get }
+var path: String { get }
+var method: RequestMethod { get }
+var header: [String: String] { get }
+var body! [String: String]? { get }
+}
+
+// código omitido
+COPIAR CÓDIGO
+Voltando ao arquivo HomeEndpoint, criaremos uma extension desse protocolo recém-criado, chamado HomeEndpoint, e implementaremos o protocolo Endpoint.
+
+Neste momento, começaremos a compreender o reuso do nosso código. Quando implementamos o protocolo endpoint, percebemos que a nossa extension não está em conformidade com o protocolo endpoint. Em outras palavras, há muitos ajustes que precisamos realizar, e começaremos a abordar essas questões agora.
+
+Há uma mensagem em vermelho escrito:
+
+Type 'HomeEndpoint' does not conform to protocol 'Endpoint'
+Selecionamos ela e depois no botão "Fix" e teremos um autocomplete:
+
+HomeEndpoint
+import Foundation
+
+enum HomeEndpoint {
+    case getAllSpecialists
+}
+
+extension Home Endpoint: Endpoint {
+var path: String {
+code
+}
+var method: RequestMethod {
+code
+}
+var header: [String: String] {
+code
+}
+var body: [String: String]? {
+code
+}
+COPIAR CÓDIGO
+Primeiramente, temos o path. O que precisamos configurar no path? O path representa o final do endpoint responsável por capturar os especialistas. Então, qual será a nossa abordagem?
+
+Dado que há mais de um caso no nosso enum, é crucial realizar essa verificação. Vamos executar um switch no nosso próprio enum e validar. Se estivermos lidando com todos os especialistas, o que faremos? Retornaremos o path, que é uma string.
+
+HomeEndpoint
+import Foundation
+
+enum HomeEndpoint {
+    case getAllSpecialists
+}
+
+extension HomeEndpoint: Endpoint {
+var path: String {
+switch self {
+case .getAllSpecialists:
+ return ""
+}
+}
+var method: RequestMethod {
+code
+}
+var header: [String: String] {
+code
+}
+var body: [String: String]? {
+code
+}
+COPIAR CÓDIGO
+Vamos revisitar o que precisamos inserir no path do GET para especialistas. Voltaremos ao arquivo webservice. Procuraremos onde está o método que obtém os especialistas. Observe que, mesmo para nós, que trabalhamos no projeto, torna-se um pouco desafiador localizar o GET. Ele está no final, na linha 218. Portanto, esse é o path que utilizaremos nessa classe, nesse enum de endpoint que criamos.
+
+/especialista
+Copiamos com "Command + C", na linha 219. Voltaremos à pasta Endpoint, no arquivo HomeEndpoint. O path para o GET de especialistas será /especialista. Assim, configuramos o path.
+
+HomeEndpoint
+import Foundation
+
+enum HomeEndpoint {
+    case getAllSpecialists
+}
+
+extension HomeEndpoint: Endpoint {
+var path: String {
+switch self {
+case .getAllSpecialists:
+ return "/especialista"
+}
+}
+var method: RequestMethod {
+code
+}
+var header: [String: String] {
+code
+}
+var body: [String: String]? {
+code
+}
+COPIAR CÓDIGO
+Agora, precisamos configurar nosso método. Vamos ter que fazer um switch, porque mais adiante aqui podem haver vários casos.
+
+Na linha 11, temos apenas um caso. No entanto, poderiam existir vários métodos diferentes, com vários endpoints. Portanto, precisamos verificar qual é o endpoint com o qual estamos trabalhando. É por isso que estamos inserindo o switch na linha 23.
+
+Utilizamos o switch do nosso próprio enum, onde verificamos os casos. Se for o caso de GET especialista, retornamos o método GET. No header, não precisamos incluir nada. Assim, ao verificar o nosso enum, se for um GET especialista, não retornamos nada e utilizamos return nil na linha 32.
+
+Quanto ao body, também não é necessário fornecer informações. Assim, aplicamos a mesma verificação com um switch em self. Se for um GET especialista, realizamos return nil.
+
+HomeEndpoint
+// código omitido
+
+var method: RequestMethod {
+switch self {
+case .getAllSpecialists:
+return .get
+}
+}
+var header: [String String] {
+switch self {
+case .getAllSpecialists:
+return nil
+}
+}
+var body: [String: String]? { switch self {
+case .getAllSpecialists: I
+return nil
+}
+}
+COPIAR CÓDIGO
+Está apontando um erro na linha 32, porque ele não está deixando retornar nil no header. Vamos entrar, então, de novo no arquivo Endpoint. Na linha 15, realmente, temos um dicionário onde passamos o tipo String: String e ele não aceita opcional.
+
+var header: [String: String] { get }
+Então, no final, vamos colocar um ponto de interrogação para aceitarmos esse tipo de valor opcional ou não, já que nem todas as requisições precisamos passar informações no header, por isso, ele pode ser opcional.
+
+Endpoint
+var header: [String: String]? { get }
+COPIAR CÓDIGO
+Vamos voltar ao arquivo HomeEndpoint. Precisamos tornar opcional na linha 29, conforme definimos no protocolo.
+
+HomeEndpoint
+// código omitido
+
+var header: [String String]? {
+switch self {
+case .getAllSpecialists:
+return nil
+}
+
+// código omitido
+COPIAR CÓDIGO
+Agora, para testarmos, pressionamos "Command + B" para tentarmos buildar o projeto. Obtivemos sucesso, o que significa que não há nenhum erro de compilação.
+
+Apenas por precaução, vamos gerar um build e subir o simulador para garantir que tudo esteja funcionando corretamente.
+
+Benefícios de organizar por funcionalidade
+Observem o benefício que alcançamos. Primeiramente, quando um novo membro junta-se ao nosso projeto, facilita muito ter uma pasta de endpoints, organizada por funcionalidade, para que possam explorar e entender as características.
+
+Por exemplo, desejamos verificar quais são os endpoints da home. Clicamos no arquivo HomeEndpoint e já temos todos os paths. Especialmente para os especialistas em GET, pode haver vários outros em um único arquivo.
+
+Em segundo lugar, temos um template, que é esse endpoint onde reutilizamos todos os elementos que definimos no protocolo Endpoint.
+
+Endpoint
+// código omitido
+
+protocol Endpoint {
+var scheme: String get}
+var host: String { get }
+var path: String { get }
+var method: RequestMethod { get }
+var header: [String: String] { get }
+var body! [String: String]? { get }
+}
+
+// código omitido
+COPIAR CÓDIGO
+Em scheme, host, path, method, header e body, conseguimos reutilizar a implementação no arquivo HomeEndpoint. Além de ficar muito mais organizado, conseguimos criar componentes customizáveis e reutilizáveis no nosso projeto.
+
+Conclusão
+A ideia desse vídeo foi exatamente essa. Começamos a mostrar para você como tratamos e separamos a responsabilidade dos endpoints de acordo com cada funcionalidade no nosso projeto.
+
+@@06
+Generics no protocolo HTTPClient
+
+Conforme desenvolvido em aula, criamos o protocolo HTTPClient:
+protocol HTTPClient {
+    func sendRequest<T: Decodable>(endpoint: Endpoint, responseModel: T.Type?) async -> Result<T?, RequestError>
+}
+COPIAR CÓDIGO
+No exemplo de código fornecido, há um protocolo chamado HTTPClient que faz uso de generics. Qual é o propósito principal de usar generics nesse protocolo?
+
+
+Alternativa correta
+Generics são usados para garantir que o HTTPClient seja compatível apenas com tipos de dados específicos, como inteiros e strings.
+ 
+Alternativa correta
+Generics permitem que o HTTPClient retorne resultados de solicitações HTTP em um formato genérico, o que significa que pode lidar com respostas de diferentes tipos de modelos de dados.
+ 
+No protocolo HTTPClient, o uso de generics na função sendRequest permite que a função seja parametrizada com um tipo T que deve ser decodificável (Decodable). Isso significa que o método pode ser usado para enviar solicitações HTTP e receber respostas em qualquer tipo de modelo de dados que seja Decodable, tornando-o genérico e flexível o suficiente para lidar com diferentes tipos de respostas de forma dinâmica. Isso é especialmente útil em cenários onde diferentes endpoints podem retornar diferentes tipos de dados, mas você deseja tratar essas respostas de forma genérica.
+Alternativa correta
+Generics permitem que o HTTPClient aceite qualquer tipo de endpoint como entrada, independentemente de sua conformidade com protocolos específicos.
+ 
+Ops! Nesse caso, como definimos no inicio do método <T: Decodable>, é obrigatório que quem for implementar esse protocolo, esteja em conformidade com o protocolo Decodable.
+Alternativa correta
+Generics são usados para permitir que o HTTPClient realize operações de rede de maneira mais eficiente.
+
+@@07
+Faça como eu fiz: implementando networking em cadastro de consulta
+
+A Clinica Médica Voll tem crescido e os funcionários estão tendo dificuldades em gerenciar as consultas. Eles precisam de uma forma eficiente de cadastrar as consultas dos pacientes. Como desenvolvedor, sua tarefa é criar uma camada de Networking para o aplicativo. Você precisa refatorar o arquivo ConsultaViewController e separar a lógica de negócios da View aplicando o modelo MVVM.
+
+Aqui nós definimos um protocolo chamado "Endpoint". O protocolo define um contrato que todos os objetos que afirmam implementar o protocolo precisam cumprir. Neste protocolo, estamos estipulando que todos os endpoints precisam ter um caminho (path) e um método HTTP. Então, quando definimos nosso 'AgendarConsultaEndpoint', precisamos fornecer o caminho para o endpoint e o método HTTP que será usado, neste caso POST. Com essa abordagem, cada parte da lógica de nossa aplicação fica em um local específico, facilitando a manutenção do código a longo prazo.
+import Foundation
+
+//Criamos um enum para gerenciar os diferentes tipos de métodos HTTP
+enum HTTPMethod: String {
+    case GET
+    case POST
+}
+
+//Criamos um protocolo para definir características de um endpoint
+protocol Endpoint {
+    var path: String { get }
+    var httpMethod: HTTPMethod { get }
+}
+
+//Criamos um 'struct' para representar o nosso endpoint de cadastro de consulta
+struct AgendarConsultaEndpoint: Endpoint {
+    var path: String {
+        return "/consultas/agendar"
+    }
+    
+    var httpMethod: HTTPMethod {
+        return .POST
+    }
+}
+
+@@08
+O que aprendemos?
+
+Nessa aula, você aprendeu como:
+Criar um HTTP client para realizar requisições. Este é um exemplo prático de como juntar várias partes de código para criar uma estrutura mais complexa.
+Entender o uso de genéricos em Swift para criar estruturas reutilizáveis que não precisam ter seus tipos pré-definidos.
+Entender como é possível utilizar decodable juntamente com genéricos para criar tipos genéricos que implementem um protocolo específico.
+Realizar verificações nos valores retornados por uma requisição a um servidor para determinar se a requisição funcionou.
+Criar arquivos separados para os endpoints, permitindo uma melhor organização e facilitando a compreensão por desenvolvedores que venham a se juntar ao projeto.
