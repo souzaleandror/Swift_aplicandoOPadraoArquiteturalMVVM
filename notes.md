@@ -1933,3 +1933,734 @@ Entender o uso de genéricos em Swift para criar estruturas reutilizáveis que n
 Entender como é possível utilizar decodable juntamente com genéricos para criar tipos genéricos que implementem um protocolo específico.
 Realizar verificações nos valores retornados por uma requisição a um servidor para determinar se a requisição funcionou.
 Criar arquivos separados para os endpoints, permitindo uma melhor organização e facilitando a compreensão por desenvolvedores que venham a se juntar ao projeto.
+
+#### 23/04/2024
+
+@05-Utilizando a camada de networking
+
+@@01
+Projeto da aula anterior
+
+Você pode revisar o seu código e acompanhar o passo a passo do desenvolvimento do nosso projeto e, se preferir, pode baixar o projeto da aula anterior.
+Bons estudos!
+
+@@02
+Implementação do protocolo HomeServiceable
+
+Transcrição
+
+Na última etapa do nosso curso, vamos aplicar tudo o que aprendemos sobre refatoração e desacoplamento de código, utilizando a camada de networking que criamos nas últimas aulas para, de fato, refatorar o nosso projeto.
+Trabalharemos no HomeViewModel, que criamos nas aulas anteriores. Perceba que estamos utilizando a classe WebService(), que contém todas as requisições para APIs do nosso app. Como estamos falando apenas da Home, o ideal é termos uma estrutura que represente apenas as chamadas de API para Home. Portanto, estamos separando por funcionalidade do projeto.
+
+A ideia é utilizarmos a última pasta que criamos na estrutura do nosso projeto, a Services, para centralizar as chamadas de APIs de acordo com as funcionalidades do projeto. Começaremos pela Home. Então, vamos lá.
+
+Clicaremos com o botão direito do mouse sobre a pasta Services e criamos um novo arquivo Swift File. Vamos nomeá-lo como HomeNetworkingService. A ideia é utilizar esse sufixo para as outras funcionalidades também, como LoginNetworkingService, por exemplo. Ou seja, para todas as funcionalidades que tivermos, acrescentaremos o sufixo NetworkingService, assim conseguiremos separar e utilizar uma nomenclatura padrão. Em seguida, basta clicar em "Create".
+
+Ele nos trará um arquivo vazio, onde criaremos um protocolo que vamos utilizar para representar um endpoint. Na verdade, todos os endpoints que tivermos podem ser acrescentados nesse protocolo. Criaremos um protocolo chamado HomeServiceable. Dentro dele, criaremos um novo método que chamaremos de getAllSpecialists, que é exatamente o que temos na classe WebService, na linha 218. Inclusive, podemos copiar a assinatura do método e colar no arquivo que acabamos de criar:
+
+import Foundation
+
+protocol HomeServiceable {
+    func getAllSpecialists() async throws -> [Specialist]?
+}
+COPIAR CÓDIGO
+A única alteração que vamos fazer agora é em relação ao retorno desse método. Ele precisa retornar um caso de sucesso, que seria a lista de especialistas, mas também pode ocorrer um erro. Então, precisamos saber qual erro é esse. Por isso, vamos recortar [Specialist]? e retornar um Result, que pode associar valores de sucesso e de erro.
+
+Então, dentro do Result, passamos um sinal de maior < e menor >. Caso funcione, retornamos a lista de especialistas opcional. Se ocorrer um erro, retornamos o RequestError que criamos na aula passada.
+
+import Foundation
+
+protocol HomeServiceable {
+    func getAllSpecialists() async throws -> Result<[Specialist]?, RequestError> 
+}
+COPIAR CÓDIGO
+Este é o protocolo que temos para Home. Nele, temos o primeiro método, que é para buscar todos os especialistas. Poderiam existir mais métodos se tivéssemos mais requisições dentro da Home. Neste caso, colocaríamos dentro desse protocolo. Mas, por enquanto, começaremos apenas com este.
+
+Fora do protocolo, vamos, de fato, criar a struct com o mesmo nome do arquivo que demos: HomeNetworkingService. Essa struct vai implementar esse protocolo que acabamos de criar, HomeServiceable. Mas, além dele, precisaremos também do protocolo HTTPClient. Vamos implementar esse protocolo, porque é ele que tem o método sendRequest.
+
+struct HomeNetworkingService: HTTPClient
+COPIAR CÓDIGO
+Para isso, seguramos a tecla "Command" e clicamos em cima do HTTPClient para visualizá-lo:
+
+protocol HTTPClient {
+    Func sendRequest<T: Decodable>(endpoint: Endpoint, responseModel: T.Type?) async -> Result<T?, RequestError>
+}
+
+extension HTTPClient {
+    func sendRequest<T: Decodable> (endpoint: Endpoint, responseModel: T.Type?) async -> Result<T?, RequestError> {
+
+    var urlComponents = URLComponents()
+    urlComponents. scheme = endpoint.scheme
+    urlComponents.host = endpoint.host
+    urlComponents.path = endpoint.path
+    urlComponents.port = 3000
+
+guard let url = urlComponents.url else {
+    return .failure (.invalidURL)
+}
+COPIAR CÓDIGO
+O HTTPClient tem a função que envia a requisição, que é a função genérica que criamos no vídeo anterior. Então, por isso precisamos implementar esse protocolo.
+
+De volta à classe que estamos criando, na linha 14, vamos implementar o HTTPClient e o HomeServiceable:
+
+import Foundation
+
+protocol HomeServiceable {
+    func getAllSpecialists() async throws -> Result<[Specialist]?, RequestError> 
+}
+
+struct HomeNetworkingService: HTTPClient, HomeServiceable {
+
+}
+COPIAR CÓDIGO
+Ele já está reclamando, porque implementamos o protocolo, mas não suas regras. Ou seja, não implementamos os métodos obrigatórios. Pensando nisso, podemos clicar na bolinha vermelha, na linha 14, para ter acesso a uma sugestão de alteração. Em seguida, clicamos no botão "Fix", no canto inferior direito do balão de sugestão, e ele implementará o método da linha 11:
+
+import Foundation
+
+protocol HomeServiceable {
+    Func getAllSpecialists() async throws -> Result<[Specialist]?, RequestError>
+}
+
+struct HomeNetworkingService: HTTPClient, HomeServiceable {
+    func getAllSpecialists() async throws -> Result<[Specialist]?, RequestError> {
+        code
+    }
+}
+COPIAR CÓDIGO
+Dentro do método GetAllSpecialists, usaremos a implementação do protocolo HTTPClient, ou seja, retornaremos o método que envia a requisição. Então, na linha 16, acrescentaremos um return. Como é uma função que está utilizando o async, precisamos usar o await para ele aguardar a resposta. Em seguida, chamamos o método sendRequest.
+
+O método sendRequest é genérico, então podemos passar um responseModel de acordo com o que precisamos, além do Endpoint que necessitamos nesse momento.
+
+import Foundation
+
+protocol HomeServiceable {
+    Func getAllSpecialists() async throws -> Result<[Specialist]?, RequestError>
+}
+
+struct HomeNetworkingService: HTTPClient, HomeServiceable {
+    func getAllSpecialists() async throws -> Result<[Specialist]?, RequestError> {
+        return await sendRequest(endpoint: Endpoint, responseModel: Decodable.Protocol?)
+    }
+}
+COPIAR CÓDIGO
+O Endpoint é da Home, então vamos chamar HomeEndpoint.getAllSpecialists. O responseModel é o da linha 11, que passamos no Result, mas vamos passá-lo como array, []. Dentro do array passamos Specialist e, em seguida, .self. O código deve ficar assim:
+
+import Foundation
+
+protocol HomeServiceable {
+    Func getAllSpecialists() async throws -> Result<[Specialist]?, RequestError>
+}
+
+struct HomeNetworkingService: HTTPClient, HomeServiceable {
+    func getAllSpecialists() async throws -> Result<[Specialist]?, RequestError> {
+        return await sendRequest(endpoint: HomeEndpoint.getAllSpecialists, responseModel: [Specialist].self)
+    }
+}
+COPIAR CÓDIGO
+Note que estamos retornando o resultado do sendRequest. Sendo assim, ele vai fazer toda a implementação que desenvolvemos na aula anterior.
+
+Para testar, precisamos fazer algumas alterações no ViewModel que temos. Então, vamos abrir novamente o arquivo HomeViewModel e dentro dele, na linha 14, temos a implementação antiga que estamos utilizando, que é o WebService:
+
+let service = WebService()
+COPIAR CÓDIGO
+A ideia é pararmos de utilizar essa classe. Em troca, precisaremos do HomeServiceable, que é o protocolo que criamos.
+
+let service: HomeServiceable
+COPIAR CÓDIGO
+Por isso, agora precisaremos de um método construtor, porque quando instanciarmos o HomeViewModel, será necessário passar algo que implemente esse protocolo HomeServiceable.
+
+Aqui já temos o primeiro ganho em questão de testes. Quando trabalhamos com testes de unidade, por exemplo, conseguimos fazer testes muito mais fáceis dessa maneira, porque conseguimos passar mocks e objetos que representam a implementação desse protocolo.
+
+Vamos criar um método construtor. Implementaremos um comentário MARK, apenas para separar. Em seguida, vamos pedir o service, que é do tipo HomeServiceable. Dentro dele, pegamos o service que temos dentro da classe, na linha 14, e igualamos ao service que estamos recebendo por parâmetro.
+
+import Foundation
+
+struct HomeViewModel {
+
+// MARK: - Attributes
+
+let service: HomeServiceable
+var authManager = AuthenticationManager.shared
+
+// MARK: - Init
+init(service: HomeServiceable) { 
+    self.service = service
+}
+COPIAR CÓDIGO
+Essa é a primeira parte da nossa refatoração. Criamos um arquivo dentro da pasta Service, que é o HomeNetworkingService, onde vamos agregar todos os endpoints da Home, separando por funcionalidade. Agora, de fato, dentro do nosso ViewModel, começamos a refatoração para parar de usar a classe que possui todas as chamadas de APIs do nosso projeto.
+
+@@03
+Refatorando ViewModel
+
+Para terminar essa primeira etapa da nossa refatoração, no HomeViewModel, precisamos alterar algumas coisas no método getSpecialists, na linha 25. O primeiro ponto é que, antigamente, estávamos contando com um sucesso, então faríamos a verificação na linha 27, ou seja, um if let, para ver se service.getSpecialists continha algum objeto. Se isso fosse verdadeiro, na linha 28 retornávamos a lista dos médicos especialistas. Se não, retornávamos uma lista vazia. Agora, estamos retornando um objeto do tipo Result, então vamos dar uma olhada novamente.
+Em HomeNetworkingService, na linha 15, nosso retorno é um Result, onde temos um caso de sucesso e um caso de erro. Então, o primeiro ponto é esse: precisamos verificar se foi sucesso ou erro baseado nesse objeto Result. Vamos voltar no ViewModel e apagar essa implementação para escrevermos de novo.
+
+Agora, teremos um Result que é um await. Vamos utilizar um service novo, que é o HomeServiceable, o protocolo que criamos. Dentro dele, temos o método getAllSpecialists(), parecido com o que tínhamos. A diferença é que, agora, teremos casos de sucesso e casos de erro, por isso vamos utilizar um switch para verificar qual foi o retorno. Então, caso ocorra sucesso, pegaremos a resposta, que chamaremos de response. Na linha seguinte, vamos retornar o response.
+
+func getSpecialists() async throws -> [Specialist] {
+    let result = try await service.getAllSpecialists()
+
+    switch result {
+    case .success(let response):
+        return response
+    }
+}
+COPIAR CÓDIGO
+Caso ocorra um erro, utilizaremos case, pegamos o objeto de erro e lançamos uma exceção, que é o erro.
+
+func getSpecialists() async throws -> [Specialist] {
+    let result = try await service.getAllSpecialists()
+
+    switch result {
+    case .success(let response):
+        return response
+    case .failure(let error):
+        throw error
+    }
+}
+COPIAR CÓDIGO
+É provável que esteja dando um erro em response, pois precisamos deixar o retorno opcional, porque pode ser que venha um objeto do tipo opcional. Então, na linha 25, onde temos o retorno da lista de [Specialist], acrescentaremos ? para tornar opcional.
+
+func getSpecialists() async throws -> [Specialist]? {
+    let result = try await service.getAllSpecialists()
+
+    switch result {
+    case .success(let response):
+        return response
+    case .failure(let error):
+        throw error
+    }
+}
+COPIAR CÓDIGO
+Essa é a implementação nova do método onde buscamos os médicos especialistas. Em contrapartida, quando alteramos, na linha 14, o nosso service para esse protocolo novo, HomeServiceable, removemos a classe WebService que estávamos utilizando. Porém, na linha 38, ele ainda tem a referência da classe antiga.
+
+Só para conseguirmos testar, vamos utilizar a implementação antiga. Então, criaremos um oldService, onde vamos remover a classe WebService.
+
+func logout() async {
+    let oldService = WebService()
+    do {
+        let response = try await service.logoutPatient()
+        if response {
+            authManager.removeToken()
+            authManager.removePatientID()
+        }
+    } catch {
+        print("ocorreu um erro no logout: \(error)")
+    }
+COPIAR CÓDIGO
+Agora, copiamos a linha 37 e, onde estávamos utilizando o service, na linha 39, damos um "Command + V" para utilizar a implementação antiga.
+
+func logout() async {
+    let oldService = WebService()
+    do {
+        let response = try await oldservice.logout Patient()
+        if response {
+            authManager.removeToken()
+            authManager.removePatientID()
+        }
+    } catch {
+        print("ocorreu um erro no logout: \(error)")
+    }
+COPIAR CÓDIGO
+Isso é só para conseguirmos testar essa primeira etapa da refatoração que estamos fazendo. Logo em seguida, também vamos fazer a mesma refatoração para esse método.
+
+Vamos apertar "Command + B" para verificar se está compilando. Note que temos um erro. No menu lateral esquerdo, clicaremos na bolinha de erro, e ele nos levará para o arquivo HomeView.
+
+Como criamos um método construtor para a classe de ViewModel, agora precisamos passar a implementação na inicialização da classe. Então, na linha 13, ele pede que passemos um service, ou seja, algo que implemente esse protocolo HomeServiceable. Já temos isso, que foi a struct que criamos.
+
+Na pasta Services, no menu lateral esquerdo, criamos uma struct que implementa o HomeServiceable. Ou seja, vamos utilizar esse HomeNetworkingService. Então, de volta ao arquivo HomeView, na linha 13, vamos passar o HomeNetworkingService:
+
+import SwiftUI
+
+struct HomeView: View {
+
+    let service = WebService()
+    var viewModel = HomeViewModel(service: HomeNetworkingService())
+COPIAR CÓDIGO
+Para vermos se realmente funcionou, devemos gerar um build, e aí deve aparecer, normalmente, a lista de especialistas. Vamos fazer esse teste, então.
+
+Vamos abrir o simulador. Ao construir, apareceu mais um erro. Vamos clicar no erro, no menu lateral esquerdo, para ver o que é.
+
+Como alteramos o retorno do método, onde retornamos a lista de médicos especialistas, para opcional, precisamos fazer essa verificação na linha 46, para extrair o valor dessa lista, para não trabalhar com uma lista opcional. Então, utilizaremos um guard let. Se isso tiver valor, ou seja, se for diferente de nil, ele vai preencher, e na linha 47, vai utilizar a lista de especialistas. Se ele não conseguir, daremos um return e não fazemos nada:
+
+Task {
+    do {
+        guard let response = try await viewModel.getSpecialists() else { 
+            return }
+        self.specialists = response
+        } catch {
+        print(error.localizedDescription)
+        }
+    }
+}
+COPIAR CÓDIGO
+Vamos rodar o projeto mais uma vez.
+
+Então temos aqui a mesma lista de médicos, porém, agora, utilizando toda a estrutura da camada de networking que criamos.
+
+@@04
+Implementação dos endpoints de autentificação
+
+Havíamos deixado dentro do HomeViewModel o método logout(), na linha 36, onde ainda estamos utilizando a estrutura antiga, ou seja, a classe WebService(). A ideia é pensarmos como podemos resolver isso agora e, basicamente, há duas alternativas. A primeira é incluir um método de logout dentro do HomeNetworkingService, na linha 11. Porém, nesse caso, ele ficaria um pouco acoplado à Home, significando que apenas a Home conseguiria fazer o logout da aplicação.
+Outra alternativa é criarmos uma autenticação, ou algo do tipo, que gerencie o login e o logout do usuário dentro da nossa aplicação. Dessa maneira, não ficaria acoplado à Home e poderíamos utilizar os métodos de login e logout em qualquer outro lugar do nosso app sem problema algum.
+
+Não há uma resposta definitiva sobre o que é certo ou errado, depende muito do design da sua aplicação, mas é importante pensar a longo prazo sobre o que seria mais viável implementar. Pode ser mais interessante trabalhar criando as coisas o mais genérico possível para poderem ser reutilizadas em outros lugares. Portanto, nessa abordagem, vamos utilizar outro protocolo dentro de Services que cuidará apenas da autenticação do usuário. É nisso que vamos trabalhar neste vídeo!
+
+A ideia é, dentro de Endpoints, criarmos um endpoint específico para autenticação. Então, vamos começar com isso. Vamos clicar com o botão direito do mouse sobre a pasta Endpoints e criar um novo arquivo chamado AuthenticationEndpoint. Esse novo arquivo será bem parecido com o que criamos para a Home, o HomeEndpoint. Vamos abri-lo para relembrar.
+
+A intenção é criar um menu com todos os casos possíveis de chamada de API e, em seguida, fazer uma extensão desse protocolo, implementando de fato o Endpoint. Assim, conseguimos preencher o path, o método, o header, exatamente como fizemos na Home. A ideia é continuarmos aplicando essa estrutura que criamos ao longo do curso.
+
+De volta ao arquivo AuthenticationEndpoint, vamos criar um enum e chamá-lo de AuthenticationEndpoint. Por enquanto, só terá um caso, que é o logout. Depois de criar o enum, criaremos uma extensão para ele na linha 14. Chamaremos de AuthenticationEndpoint e implementaremos o Endpoint, nosso protocolo padrão que temos para reutilizar em outros lugares.
+
+É provável que ele aponte um erro porque ainda não implementamos tudo que precisamos dentro dele. Vamos clicar na bolinha vermelha e em "Fix", no canto inferior direito do balão, para implementar o template o protocolo que temos aqui.
+
+import Foundation
+
+enum AuthenticationEndpoint { 
+    case logout
+}
+
+extension AuthenticationEndpoint: Endpoint {
+    var path: String { 
+        code 
+    }
+
+    var method: RequestMethod { 
+        code 
+    }
+    
+    var header: [String: String]? { 
+        code 
+    }
+    
+    var body: [String: String]? { 
+        code 
+    }
+    
+}
+COPIAR CÓDIGO
+Então, temos o path, method, header e body, exatamente como fizemos em HomeEndpoint, mas agora para a autenticação. Primeiro, temos que verificar qual é o caso que temos aqui. Nesse caso, temos apenas o de logout, mas poderia ter mais de um, por isso é importante fazer essa verificação. Vamos fazer um switch do próprio enum e, caso seja .logout, retornamos um path que é o path de logout.
+
+Para relembrar qual é o path do logout, abrimos o arquivo WebService e localizamos, na linha 15, o método que faz logout e, na linha 16, o path, exatamente o que precisamos. Então, vamos copiá-lo. De volta ao arquivo AuthenticationEndpoint, colamos o path na linha 18.
+
+Em method, fazemos o mesmo: acrescentamos um switch case do próprio enum. Dentro dele, poderíamos ter alguns casos, mas por enquanto só temos o de logout, e para ele vamos retornar o método .post.
+
+import Foundation
+​
+enum AuthenticationEndpoint { 
+  case logout
+}
+​
+extension AuthenticationEndpoint: Endpoint {
+    var path: String {
+        switch self {
+        case .logout: 
+            return "/auth/logout"
+        }
+  }
+​
+  var method: RequestMethod { 
+    switch self { 
+    case .logout: 
+        return .post
+}
+  }
+  
+  var header: [String: String]? { 
+    code 
+  }
+  
+  var body: [String: String]? { 
+    code 
+  }
+  
+}
+COPIAR CÓDIGO
+Em seguida, temos o header, na linha 30, onde também faremos um switch do próprio enum. Caso seja logout, vamos implementar. Aqui, vamos utilizar o token, então vamos abrir novamente a classe WebService, da qual precisaramos de authManager, que é esse token. Então vamos copiá-lo e colá-lo no arquivo AuthenticationEndpoint. Em logout, o primeiro passo é extrair o token, então vou utilizar um guard let, chamar de token e igualdar ao que copiamos: AuthenticationManager.shared. Ao acrescentar um ponto na sequência, temos acesso ao token.
+
+Então, na linha 32 estamos pegando o valor do token. Se ele não tiver, vai entrar em else, e aí damos um return nil, ou seja, não tem como fazer o logout porque não encontramos o token. Se ele passar das linhas 32, 33 e 34, significa que temos o token e conseguimos fazer o logout. Então, vamos retornar o header utilizando o token.
+
+Para isso, vamos criar um dicionário com Authorization e Content-Type, que copiaremos da classe WebService:
+
+import Foundation
+​
+enum AuthenticationEndpoint { 
+  case logout
+}
+​
+extension AuthenticationEndpoint: Endpoint {
+    var path: String {
+        switch self {
+        case .logout: 
+            return "/auth/logout"
+        }
+  }
+​
+  var method: RequestMethod { 
+    switch self { 
+    case .logout: 
+        return .post
+}
+  }
+  
+  var header: [String: String]? { 
+    switch self {
+    case .logout:
+        guard let token = AuthenticationManager.shared.token else
+            return nil
+        }
+        return [
+            "Authorization": "Bearer \(token) "
+            "Content-Type": "application/json"
+        ]
+    }
+  }
+  
+  var body: [String: String]? { 
+    code 
+  }
+  
+}
+COPIAR CÓDIGO
+Agora, para finalizar, vamos implementar a lógica do body, ou seja, o corpo da requisição. Vamos fazer um switch e verificar o enum. Caso seja logout, e não enviaremos nada no body, logo, return nil. Repare que podemos retornar um dicionário opcional. Se ele é opcional, podemos passar nil.
+
+import Foundation
+​
+enum AuthenticationEndpoint { 
+  case logout
+}
+​
+extension AuthenticationEndpoint: Endpoint {
+    var path: String {
+        switch self {
+        case .logout: 
+            return "/auth/logout"
+        }
+  }
+​
+  var method: RequestMethod { 
+    switch self { 
+    case .logout: 
+        return .post
+    }
+ }
+  
+  var header: [String: String]? { 
+    switch self {
+    case .logout:
+        guard let token = AuthenticationManager.shared.token else {
+            return nil
+        }
+        return [
+            "Authorization": "Bearer \(token) ",
+            "Content-Type": "application/json"
+        ]
+    }
+  }
+  
+  var body: [String: String]? { 
+    switch self {
+    case .logout:
+        return nil
+    }
+  }
+ }
+COPIAR CÓDIGO
+Então, essa é a estrutura que criamos para manejar o caso de autenticação do usuário no nosso app. A ideia foi criar um novo exemplo utilizando a camada de networking que temos aqui. Dessa maneira, futuramente, se precisarmos utilizar o logout em outros pedaços da aplicação, é só utilizar essa estrutura dentro do ViewModel. A seguir, vamos finalizar a refatoração do nosso método de logout.
+
+@@05
+Refatorando com AuthenticationService
+
+Agora que já temos o AuthenticationEndpoint, seguindo a estrutura da camada de networking que criamos, precisamos criar o arquivo dentro da pasta Services, como fizemos com a Home.
+Em HomeNetworkingService, basicamente temos um protocolo que representa os endpoints que podemos ter dentro de cada funcionalidade. Em seguida, temos a implementação desse protocolo usando também o HTTPClient. É isso que faremos para o Authentication.
+
+Clicaremos com o botão direito do mouse sobre a pasta Services e criaremos um novo arquivo chamado AuthenticationService. Nele, vamos primeiro criar o protocolo AuthenticationServiceable.
+
+import Foundation
+
+protocol AuthenticationServiceable {
+
+}
+COPIAR CÓDIGO
+Dentro deste protocolo, teremos os métodos que farão a chamada de API. No caso, o logout(), que utilizará o async await. Assim como a Home, ele vai retornar um resultado que pode ser de sucesso ou de erro. Se for sucesso, ele vai retornar um booleano, por exemplo, e deixaremos como opcional. Caso ocorra um erro, vamos retornar o erro baseado no enum que temos de erro. Então, é o RequestError.
+
+Nesse caso, precisamos saber apenas se realmente foi feito o logoff. Ou seja, se é uma variável booleana, ele vai retornar um true ou false, e aí conseguimos, por exemplo, remover as credenciais do usuário.
+
+import Foundation
+
+protocol AuthenticationServiceable {
+    func logout() async -> Result<Bool?, RequestError>
+}
+COPIAR CÓDIGO
+Já temos um protocolo. Agora, vamos criar a struct, cujo nome será AuthenticationService, e implementar o protocolo HTTPClient, que nos fornece o método sendRequest, e o protocolo que acabamos de criar, AuthenticationServiceable.
+
+import Foundation
+
+protocol AuthenticationServiceable {
+    func logout() async -> Result<Bool?, RequestError>
+}
+
+struct AuthenticationService: HTTPClient, AuthenticationServiceable {
+
+}
+COPIAR CÓDIGO
+Dentro, precisamos implementar o método de logout() que criamos no protocolo AuthenticationServiceable. Note que ao final da linha de struct há uma mensagem de erro. Vamos clicá-la e, em seguida, clicar em "Fix" para que o método de logout() seja implementado.
+
+import Foundation
+
+protocol AuthenticationServiceable {
+    func logout() async -> Result<Bool?, RequestError>
+}
+
+struct AuthenticationService: HTTPClient, AuthenticationServiceable {
+    func logout() async -> Result<Bool?, RequestError> {
+    
+    }
+}
+COPIAR CÓDIGO
+Dentro da implementação do método logout(), incluiremos um return await, porque vamos aguardar a resposta da solicitação que faremos ao servidor, e chamamos a função sendRequest(), fornecida pelo protocolo HTTPClient.
+
+import Foundation
+
+protocol AuthenticationServiceable {
+    func logout() async -> Result<Bool?, RequestError>
+}
+
+struct AuthenticationService: HTTPClient, AuthenticationServiceable {
+    func logout() async -> Result<Bool?, RequestError> {
+        return await sendRequest(endpoint: Endpoint, responseModel: Decodable.Protocol?)
+    }
+}
+COPIAR CÓDIGO
+Precisamos passar um endpoint, no caso AuthenticationEndpoint.logout. Em responseModel, nesse caso, não estamos esperando que faça nenhuma decodificação na resposta do servidor. Ou seja, o servidor não vai retornar um JSON de objetos para fazer a decodificação e mostrar na tela, como foi o caso de médicos especialistas, mas receber apenas um true ou false para saber se foi feito o logoff ou não. responseModel é opcional, então podemos passar nil.
+
+import Foundation
+
+protocol AuthenticationServiceable {
+    func logout() async -> Result<Bool?, RequestError>
+}
+
+struct AuthenticationService: HTTPClient, AuthenticationServiceable {
+    func logout() async -> Result<Bool?, RequestError> {
+        return await sendRequest(endpoint: AuthenticationEndpoint.logout, responseModel: nil)
+    }
+}
+COPIAR CÓDIGO
+Temos aqui a mesma estrutura que criamos para a Home. Repare que agora é para outra funcionalidade, então estamos separando, de fato, por funcionalidade. E para utilizar tudo isso, abriremos novamente o arquivo HomeViewModel. Sendo assim, vamos aplicar isso que fizemos dentro do ViewModel da Home, mas poderíamos aplicar em outro ViewModel que tivéssemos dentro do aplicativo. Dessa forma, conseguimos colocar essa funcionalidade de forma organizada em outros cantos da nossa aplicação.
+
+Em HomeViewModel, faremos algo parecido com o que fizemos com a camada de service da Home. Portanto, logo abaixo de let service: HomeServiceable, criaremos uma constante chamada de AuthService, que será do tipo AuthenticationServiceable.
+
+// MARK: - Attributes
+
+let service: HomeServiceable
+let authService: AuthenticationServiceable
+var authManager = AuthenticationManager.shared
+COPIAR CÓDIGO
+Como acrescentamos mais uma variável, no método construtor precisamos receber a implementação desse protocolo AuthenticationServiceable. Então, faremos como fizemos com o service, passando authService como do tipo AuthenticationServiceable. Dentro do init(), após self.service = service, passaremos self.authService atribuindo o authService que estamos recebendo por parâmetro.
+
+// MARK: - Init
+
+init(service: HomeServiceable, authService: AuthenticationServiceable) {
+    self.service = service
+    self.authService = authService
+}
+COPIAR CÓDIGO
+Agora, finalmente, podemos ir no método de logout(), na linha 38, um débito técnico que deixamos para resolver agora. A ideia é remover a utilização da classe WebService(), que contém todos os web services da aplicação, e utilizar a nossa estrutura. Antes de apagar, porém, vamos copiar as linha 43 e 44, onde usamos o authManager para remover o token e onde removemos o ID do usuário. Feito isso, podemos apagar o bloco de código.
+
+func logout() async {
+
+    }
+}
+COPIAR CÓDIGO
+Como a resposta pode trazer sucesso ou erro, dentro do objeto result, precisamos tratar e verificar se ocorreu um erro ou sucesso. Primeiro, precisamos do result, então criaremos uma constante com este nome. Aqui, vamos usar o await para guardar a resposta, chamar o authService que criamos e .logout(). Com base na resposta, conseguimos fazer um switch case, pegando o result como case.success(). Se ele entrar aqui nisso, saberemos que retornou, por exemplo, um true. Então vamos colar aquelas duas linhas que havíamos copiado para remover o token e a credencial do usuário.
+
+Caso ocorra uma falha, vamos querer saber qual foi o erro. Então, vamos criar uma constante de erro e printar esse erro no console utilizando print(error.localizedDescription). Aqui no final
+
+func logout() async {
+    let result = await authService.logout()
+
+    switch result {
+    case .success(_ ):
+        authManager.removeToken()
+        authManager.removePatientID()
+case .failure (let error):
+        print(error.localizedDescription)
+        }
+    }
+}
+COPIAR CÓDIGO
+Agora, vamos abrir o arquivo HomeView. Como acrescentamos um parâmetro a mais no init do nosso ViewModel, ele pede que coloquemos esse parâmetro authService na linha 13. O authService vai ser exatamente a struct que criamos. Então, ainda na linha 13, chamaremos o AuthenticationService() e o instanciamos.
+
+let service = WebService()
+var viewModel = HomeViewModel (service: Home NetworkingService(),
+                                                            authService: AuthenticationService())
+COPIAR CÓDIGO
+Dentro do HomeViewModel, temos dois parâmetros da inicialização, que é o service e o authService. Para testar tudo isso, o método logout() será chamado na linha 58:
+
+Task{
+    await viewModel.logout()
+}
+COPIAR CÓDIGO
+Vamos rodar o aplicativo para testar e verificar se, de fato, está funcionando. Vamos gerar um build.
+
+Note que ele nos trouxe a lista de médicos, ou seja, o nosso usuário está logado. Na parte superior direita, temos o botão de logout. Ao clicá-lo, somos redirecionados para a tela de login novamente, ou seja, a requisição funcionou.
+
+Conseguimos refatorar utilizando a camada de networking, mas a funcionalidade do app continua a mesma. Garantimos não só que o código fique melhor, mas que o produto continue funcionando como estava!
+
+@@06
+Faça como eu fiz: melhorias no projeto Vollmed
+
+A "Clínica Médica Voll (Medicina)" tem um novo aplicativo para agendar consultas com especialistas. No entanto, nosso aplicativo está enfrentando alguns problemas: Os usuários estão tendo problemas para encontrar especialistas disponíveis e enfrentam erros ao tentar sair do aplicativo. Sua tarefa é implementar recursos de networking para resolver esses problemas.
+
+Primeiro, crie um Endpoint de "Home" para buscar todos os especialistas e um Endpoint de "Autenticação" para que os usuários possam sair do aplicativo.
+Em seguida, implemente a funcionalidade "getAllSpecialists" como um método assíncrono que utiliza o endpoint "Home" que você criou para buscar todos os especialistas. Certifique-se de lidar com possíveis erros de requisição.
+
+Também, implemente a funcionalidade "logout" como um método assíncrono que utiliza o endpoint de "Autenticação" que você criou para realizar o logout do usuário.
+
+Finalmente, atualize o ViewModel da Home para utilizar os novos serviços criados.
+
+import Foundation
+
+// Criação dos Endpoints
+enum HomeEndpoint {
+    case getAllSpecialists
+}
+
+enum AuthenticationEndpoint {
+    case logout
+}
+
+// Serviços para os endpoints
+protocol HomeServiceable {
+    func getAllSpecialists() async throws -> Result<[Specialist]?, RequestError>
+}
+
+struct HomeNetworkingService: HTTPClient, HomeServiceable {
+    func getAllSpecialists() async throws -> Result<[Specialist]?, RequestError> {
+        return await sendRequest(endpoint: HomeEndpoint.getAllSpecialists, responseModel: [Specialist].self)
+    }
+}
+
+protocol AuthenticationServiceable {
+    func logout() async -> Result<Bool?, RequestError>
+}
+
+struct AuthenticationService: HTTPClient, AuthenticationServiceable {
+    func logout() async -> Result<Bool?, RequestError> {
+        return await sendRequest(endpoint: AuthenticationEndpoint.logout, responseModel: nil)
+    }
+}
+
+// Atualização do ViewModel da Home
+struct HomeViewModel {
+    let service: HomeServiceable
+    let authService: AuthenticationServiceable
+    var authManager = AuthenticationManager.shared
+
+    init(service: HomeServiceable, authService: AuthenticationServiceable) {
+        self.service = service
+        self.authService = authService
+    }
+
+    func getSpecialists() async throws -> [Specialist]? {
+        let result = try await service.getAllSpecialists()
+
+        switch result {
+        case .success(let response):
+            return response
+        case .failure(let error):
+            throw error
+        }
+    }
+
+    func logout() async {
+        let result = await authService.logout()
+
+        switch result {
+        case .success(_ ):
+            authManager.removeToken()
+            authManager.removePatientID()
+        case .failure(let error):
+            print(error.localizedDescription)
+        }
+    }
+}
+COPIAR CÓDIGO
+O objetivo desta atividade é estimular a prática necessária para seu aprendizado!
+
+Você pode conferir o código do projeto até o momento através desta branch no GitHub.
+
+Se precisar de ajuda, chama a gente no fórum ou discord!
+
+@@07
+Protocolo endpoint
+
+Desenvolvemos nas últimas aulas uma camada de Networking, que desempenha um papel importante na criação de um sistema de requisições HTTP no aplicativo. Um dos protocolos que mais utilizamos foi o Endpoint. Assinale as alternativas que justificam o uso desse protocolo na camada Networking:
+
+
+Alternativa correta
+Abstração de Detalhes de Requisição.
+ 
+O protocolo Endpoint encapsula os detalhes específicos de uma requisição HTTP, como o esquema (scheme), host, caminho (path), método (method), cabeçalhos (header), corpo (body) etc. Isso permite que você defina os detalhes de uma requisição em um único lugar, tornando o código mais limpo e fácil de gerenciar.
+Alternativa correta
+Flexibilidade para Diferentes Endpoints.
+ 
+Mesmo que haja configurações comuns, o protocolo Endpoint permite que você defina propriedades específicas para cada endpoint, como caminhos diferentes ou cabeçalhos específicos. Isso é importante para lidar com diferentes partes de uma API que podem ter requisitos específicos.
+Alternativa correta
+Reutilização de Configurações Comuns.
+ 
+A implementação padrão das propriedades do protocolo, como scheme e host, permite que você defina configurações comuns uma vez e as reutilize em várias partes do código. Isso é particularmente útil quando muitas requisições compartilham as mesmas configurações de host e esquema.
+Alternativa correta
+Padronização
+ 
+Ao seguir um padrão como o Endpoint, você pode garantir que todas as requisições sigam uma estrutura consistente. Isso torna o código mais legível e facilita para outros desenvolvedores entenderem a lógica de requisição do seu aplicativo.
+Alternativa correta
+Tratamento de Erros.
+
+@@08
+Projeto final
+
+Você pode baixar ou acessar o código-fonte do projeto final.
+Aproveite para explorá-lo e revisar pontos importantes do curso.
+
+Bons estudos!
+
+https://github.com/alura-cursos/ios-mvvm-pattern/archive/refs/heads/aula-5.zip
+
+https://github.com/alura-cursos/ios-mvvm-pattern/tree/aula-5
+
+@@09
+O que aprendemos?
+
+Nessa aula, você aprendeu como:
+Criar serviços especializados para lidar com operações de rede, como obter especialistas e autenticação.
+Entender a importância da injeção de dependências para conectar serviços à camada de ViewModel, tornando o código mais flexível e testável.
+Utilizar o protocolo Endpoint para abstrair os detalhes de requisições HTTP, reutilizar configurações comuns e garantir a flexibilidade para diferentes endpoints.
+Entender a adição de um serviço de autenticação e a injeção desse serviço na ViewModel também pode envolver o tratamento de erros de rede, garantindo uma experiência confiável para o usuário.
+Usar padrões como o protocolo Endpoint e a injeção de dependências ajuda a padronizar o código e torná-lo mais legível e gerenciável, facilitando a colaboração entre desenvolvedores.
+
+@@10
+Recados finais
+
+Parabéns, você chegou ao fim do nosso curso. Tenho certeza que esse mergulho foi de muito aprendizado.
+Após os créditos finais do curso, você será redirecionado para uma tela na qual poderá deixar seu feedback e avaliação do curso. Sua opinião é muito importante para nós.
+
+Aproveite para conhecer a nossa comunidade no Discord da Alura e se conectar com outras pessoas com quem pode conversar, aprender e aumentar seu networking.
+
+Continue mergulhando com a gente 🤿.
+
+@@11
+Conclusão
+
+Parabéns por chegar até aqui e concluir este curso!
+Vamos repassar tudo que aprendemos nesta jornada?
+
+A ideia geral era começar a mostrar para você um pouco sobre padrões arquiteturais, como separar as responsabilidades dentro do nosso projeto e a importância disso. Logo de início, vimos que o arquivo HomeView estava muito acoplado com a lógica de requisições, o que não é ideal, pois acaba atribuindo muitas responsabilidades à View.
+
+No início, começamos a ver a importância de utilizar um padrão arquitetural no nosso projeto. Nesse caso, utilizamos um MVVM. Criamos o HomeViewModel e, nele, começamos a separar a lógica de algumas requisições do nosso projeto. Primeiro pelo método, onde pegamos os médicos especialistas e, depois, também refatoramos a parte de logout.
+
+Outro ponto que havíamos listado como débito técnico no projeto era a questão do arquivo WebService, onde tínhamos todas as requisições do aplicativo. Pensando a longo prazo ou em um aplicativo de larga escala, começamos a organizar isso melhor por funcionalidades. Por isso, criamos a camada de networking, onde desenvolvemos alguns protocolos para conseguirmos reutilizar o código. Dentro dela, começamos a separar por funcionalidades, criando um HomeNetworkingService para concentrar todos os endpoints da Home. Também separamos a parte de autenticação do usuário, criando um AuthenticationService. Desta forma, conseguimos tornar nosso projeto mais reutilizável, facilitando o login e o logoff de outras partes do aplicativo.
+
+Esse foi o conteúdo que vimos durante este curso! Te convidamos a participar da nossa comunidade do Discord, onde os alunos podem tirar dúvidas, interagir com outros estudantes que estão passando pelo mesmo processo de aprendizagem e trocar experiências adquiridas nos cursos.
+
+Muito obrigado e até a próxima!
